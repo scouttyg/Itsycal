@@ -111,8 +111,19 @@
 
 #pragma mark Regex construction
 
-+ (NSString *)alternationPatternForPhrases:(NSArray<NSString *> *)phrases
+// Returns nil (not an empty string) when `phrases` is empty. This matters:
+// an empty alternation group like `(?:)` is valid regex syntax that matches
+// the *empty string* at every position, so silently interpolating "" into
+// a larger pattern turns "this branch should never match" into "this
+// branch matches almost anything" — e.g. an empty oneHourPhrases list
+// would otherwise make `\bfor\s+()\b` match any "for <word>", not just
+// "for a hour"/"for an hour". Every call site must explicitly decide what
+// an absent word list means for its pattern (see the two call sites below
+// for the two valid answers: omit the whole branch, or substitute "(?!)",
+// a group that can never match, to keep capture-group numbering fixed).
++ (nullable NSString *)alternationPatternForPhrases:(NSArray<NSString *> *)phrases
 {
+    if (phrases.count == 0) return nil;
     NSMutableArray<NSString *> *escaped = [NSMutableArray new];
     for (NSString *phrase in phrases) {
         [escaped addObject:[NSRegularExpression escapedPatternForString:phrase]];
@@ -123,24 +134,38 @@
 - (void)buildTimeRegexFromKeywords:(EventQuickEntryKeywords *)keywords
 {
     // The digit-based patterns are universal (digits are digits regardless
-    // of language); only the non-numeric time-of-day words vary.
+    // of language); only the non-numeric time-of-day words vary. No
+    // explicitTimeWords configured just means that whole alternative is
+    // omitted — the universal digit patterns still work.
     NSString *wordsAlt = [[self class] alternationPatternForPhrases:keywords.explicitTimeWords];
-    NSString *wordsBranch = wordsAlt.length > 0 ? [NSString stringWithFormat:@"|\\b(?:%@)\\b", wordsAlt] : @"";
+    NSString *wordsBranch = wordsAlt ? [NSString stringWithFormat:@"|\\b(?:%@)\\b", wordsAlt] : @"";
     NSString *pattern = [NSString stringWithFormat:@"(?i)\\b\\d{1,2}(:\\d{2})?\\s*(am|pm|a\\.m\\.|p\\.m\\.)\\b|\\b\\d{1,2}:\\d{2}\\b%@", wordsBranch];
     _timeRegex = [NSRegularExpression regularExpressionWithPattern:pattern options:0 error:nil];
 }
 
 - (void)buildDurationRegexFromKeywords:(EventQuickEntryKeywords *)keywords
 {
+    if (keywords.durationPrefixWord.length == 0) {
+        _durationRegex = nil;
+        return;
+    }
     NSString *forWord = [NSRegularExpression escapedPatternForString:keywords.durationPrefixWord];
-    NSString *halfHour = [NSRegularExpression escapedPatternForString:keywords.halfHourPhrase];
-    NSString *oneHourAlt = [[self class] alternationPatternForPhrases:keywords.oneHourPhrases];
-    NSString *hourUnitAlt = [[self class] alternationPatternForPhrases:keywords.hourUnitWords];
-    NSString *minuteUnitAlt = [[self class] alternationPatternForPhrases:keywords.minuteUnitWords];
 
-    // Four alternatives, each with its own capture group so the matching
-    // branch can be identified without relying on language-specific
-    // substring checks (e.g. English "half"/"hour") on the matched text.
+    // Each alternative's word list is independently optional, but unlike
+    // buildTimeRegexFromKeywords: above, a missing one can't just be
+    // omitted here — -durationSpanInMasked:result: reads specific capture
+    // group *indices* (1=half-hour, 2=one-hour, 3=hours, 4=minutes) to
+    // classify which alternative matched, so all four must stay
+    // structurally present. A missing word list instead gets "(?!)" — a
+    // group that can never match — so that alternative is effectively
+    // disabled without shifting the others' group numbers.
+    NSString *halfHour = keywords.halfHourPhrase.length > 0
+        ? [NSRegularExpression escapedPatternForString:keywords.halfHourPhrase]
+        : @"(?!)";
+    NSString *oneHourAlt = [[self class] alternationPatternForPhrases:keywords.oneHourPhrases] ?: @"(?!)";
+    NSString *hourUnitAlt = [[self class] alternationPatternForPhrases:keywords.hourUnitWords] ?: @"(?!)";
+    NSString *minuteUnitAlt = [[self class] alternationPatternForPhrases:keywords.minuteUnitWords] ?: @"(?!)";
+
     NSString *pattern = [NSString stringWithFormat:
         @"(?i)\\b%@\\s+(%@)\\b|\\b%@\\s+(%@)\\b|\\b%@\\s+(\\d+)\\s*(?:%@)\\b|\\b%@\\s+(\\d+)\\s*(?:%@)\\b",
         forWord, halfHour, forWord, oneHourAlt, forWord, hourUnitAlt, forWord, minuteUnitAlt];
@@ -171,12 +196,14 @@
 
 - (void)buildLocationRegexFromKeywords:(EventQuickEntryKeywords *)keywords
 {
+    // "@" is always recognized as a location prefix regardless of language,
+    // so locationPrefixWords is optional — a language pack with none still
+    // works via "@" alone. The word-alternatives are wrapped in \b so the
+    // boundary doesn't apply to "@" itself (a non-word character can't be
+    // preceded by \b the way "@ Cafe Luna" needs it to).
     NSString *prefixAlt = [[self class] alternationPatternForPhrases:keywords.locationPrefixWords];
-    // "@" is always recognized as a location prefix regardless of language.
-    // The word-alternatives are wrapped in \b so the boundary doesn't apply
-    // to "@" itself (a non-word character can't be preceded by \b the way
-    // "@ Cafe Luna" needs it to).
-    NSString *pattern = [NSString stringWithFormat:@"(?i)(?:\\b(?:%@)|@)\\s+([A-Za-z0-9][^,]*?)(?:\\s+(?:%@|@))?\\s*$", prefixAlt, prefixAlt];
+    NSString *prefixGroup = prefixAlt ? [NSString stringWithFormat:@"\\b(?:%@)|@", prefixAlt] : @"@";
+    NSString *pattern = [NSString stringWithFormat:@"(?i)(?:%@)\\s+([A-Za-z0-9][^,]*?)(?:\\s+(?:%@))?\\s*$", prefixGroup, prefixGroup];
     _locationRegex = [NSRegularExpression regularExpressionWithPattern:pattern options:0 error:nil];
 }
 
@@ -193,16 +220,26 @@
         @(EventQuickEntryRecurrenceEveryYear),
     ];
     NSMutableArray<NSRegularExpression *> *regexes = [NSMutableArray new];
+    NSMutableArray<NSNumber *> *values = [NSMutableArray new];
     NSMutableArray<NSString *> *labels = [NSMutableArray new];
-    for (NSString *key in orderedKeys) {
-        NSArray<NSString *> *phrases = keywords.recurrencePhrasesByFrequencyKey[key] ?: @[];
+    for (NSInteger i = 0; i < (NSInteger)orderedKeys.count; i++) {
+        NSString *key = orderedKeys[i];
+        NSArray<NSString *> *phrases = keywords.recurrencePhrasesByFrequencyKey[key];
+        // A frequency with no configured phrases is skipped entirely,
+        // rather than built into `\b(?:)\b` — which, since an empty
+        // alternation group matches the empty string, would match at
+        // *every* word boundary in *any* input (see
+        // +alternationPatternForPhrases:). regexes/values/labels are
+        // appended together so they stay index-parallel despite the skip.
         NSString *alt = [[self class] alternationPatternForPhrases:phrases];
+        if (!alt) continue;
         NSString *pattern = [NSString stringWithFormat:@"(?i)\\b(?:%@)\\b", alt];
         [regexes addObject:[NSRegularExpression regularExpressionWithPattern:pattern options:0 error:nil]];
+        [values addObject:orderedValues[i]];
         [labels addObject:keywords.recurrenceLabelsByFrequencyKey[key] ?: @""];
     }
     _recurrenceRegexes = regexes;
-    _recurrenceValues = orderedValues;
+    _recurrenceValues = values;
     _recurrenceLabels = labels;
 }
 

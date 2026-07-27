@@ -92,8 +92,15 @@ typedef NS_ENUM(NSInteger, EventQuickEntrySpanKind) {
 // Idioms for exactly one hour, e.g. @[@"a hour", @"an hour"] (en) / @[@"una hora"] (es).
 @property (nonatomic, copy) NSArray<NSString *> *oneHourPhrases;
 // Words for "hours", e.g. @[@"hours", @"hour", @"hrs", @"hr"] (en) / @[@"horas", @"hora"] (es).
+// Order matters beyond matching: index 0 is used as the plural display
+// word and index 1 as the singular ("1 hour" vs "2 hours") when rendering
+// a duration span's tooltip text — see -displayValueForDurationMinutes:.
 @property (nonatomic, copy) NSArray<NSString *> *hourUnitWords;
 // Words for "minutes", e.g. @[@"minutes", @"minute", @"mins", @"min"] (en) / @[@"minutos", @"minuto"] (es).
+// Index 0 is used as the display word for any minute count, including
+// exactly 1 (e.g. English always renders "1 minutes", never singularizing
+// it) — a known simplification carried over unchanged from before this
+// class existed, not something introduced here.
 @property (nonatomic, copy) NSArray<NSString *> *minuteUnitWords;
 // Words introducing a location, e.g. @[@"at", @"in"] (en) / @[@"en", @"a"] (es).
 // "@" is always recognized as a location prefix regardless of language.
@@ -147,7 +154,7 @@ typedef NS_ENUM(NSInteger, EventQuickEntrySpanKind) {
 // an EventQuickEntryKeywords config — the matching *logic* (masked-text
 // pipeline, regex shapes) is fixed; only the words are configurable. Every
 // keyword-based language uses this same class directly, constructed from
-// keywords loaded from that language's plist — see
+// keywords loaded from that language's .strings file — see
 // EventQuickEntryLanguagePackRegistry, which is how you actually get one.
 @interface EventQuickEntryKeywordLanguagePack : NSObject <EventQuickEntryLanguagePack>
 - (instancetype)initWithKeywords:(EventQuickEntryKeywords *)keywords NS_DESIGNATED_INITIALIZER;

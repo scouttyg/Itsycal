@@ -405,4 +405,71 @@
     XCTAssertNil(result.location);
 }
 
+#pragma mark - Partial/incomplete keyword configs (regression coverage for the
+#pragma mark   empty-alternation-group hazard on +alternationPatternForPhrases:)
+
+- (EventQuickEntryKeywords *)minimalKeywordsWithOneHourPhrases:(NSArray<NSString *> *)oneHourPhrases
+                                  recurrencePhrasesByFrequencyKey:(NSDictionary<NSString *, NSArray<NSString *> *> *)recurrencePhrases
+{
+    EventQuickEntryKeywords *keywords = [EventQuickEntryKeywords new];
+    keywords.languageCode = @"en";
+    keywords.durationPrefixWord = @"for";
+    keywords.halfHourPhrase = @"half an hour";
+    keywords.oneHourPhrases = oneHourPhrases;
+    keywords.hourUnitWords = @[@"hours", @"hour"];
+    keywords.minuteUnitWords = @[@"minutes", @"minute"];
+    keywords.locationPrefixWords = @[@"at", @"in"];
+    keywords.danglingPrefixWords = @[@"on"];
+    keywords.mealWords = @[];
+    keywords.explicitTimeWords = @[];
+    keywords.recurrencePhrasesByFrequencyKey = recurrencePhrases;
+    NSMutableDictionary<NSString *, NSString *> *labels = [NSMutableDictionary new];
+    for (NSString *key in recurrencePhrases) labels[key] = key;
+    keywords.recurrenceLabelsByFrequencyKey = labels;
+    keywords.dateSpanLabel = @"Date";
+    keywords.durationSpanLabel = @"Duration";
+    keywords.locationSpanLabel = @"Location";
+    keywords.repeatSpanLabel = @"Repeat";
+    keywords.dateTimeConnector = @"at";
+    keywords.placeholderExample = @"";
+    return keywords;
+}
+
+- (void)testEmptyOneHourPhrasesDoesNotFalsePositiveMatchEveryForPhrase
+{
+    EventQuickEntryKeywords *keywords = [self minimalKeywordsWithOneHourPhrases:@[] recurrencePhrasesByFrequencyKey:@{}];
+    EventQuickEntryKeywordLanguagePack *pack = [[EventQuickEntryKeywordLanguagePack alloc] initWithKeywords:keywords];
+    EventQuickEntryParser *parser = [[EventQuickEntryParser alloc] initWithLanguagePack:pack];
+
+    EventQuickEntryResult *result = [parser parse:@"Standup for the whole team" calendar:self.calendar];
+    XCTAssertEqual(result.durationMinutes, 0);
+}
+
+- (void)testConfiguredOneHourPhraseStillWorksAlongsideEmptyOnes
+{
+    EventQuickEntryKeywords *keywords = [self minimalKeywordsWithOneHourPhrases:@[@"an hour"] recurrencePhrasesByFrequencyKey:@{}];
+    EventQuickEntryKeywordLanguagePack *pack = [[EventQuickEntryKeywordLanguagePack alloc] initWithKeywords:keywords];
+    EventQuickEntryParser *parser = [[EventQuickEntryParser alloc] initWithLanguagePack:pack];
+
+    EventQuickEntryResult *result = [parser parse:@"Workshop for an hour" calendar:self.calendar];
+    XCTAssertEqual(result.durationMinutes, 60);
+}
+
+- (void)testEmptyRecurrencePhrasesForOneFrequencyDoesNotFalsePositiveMatchEverything
+{
+    // Only "everyDay" is configured; simulates a partially-filled-in
+    // language pack that hasn't supplied phrases for the other four
+    // frequencies yet.
+    EventQuickEntryKeywords *keywords = [self minimalKeywordsWithOneHourPhrases:@[@"an hour"]
+                                            recurrencePhrasesByFrequencyKey:@{@"everyDay": @[@"every day"]}];
+    EventQuickEntryKeywordLanguagePack *pack = [[EventQuickEntryKeywordLanguagePack alloc] initWithKeywords:keywords];
+    EventQuickEntryParser *parser = [[EventQuickEntryParser alloc] initWithLanguagePack:pack];
+
+    EventQuickEntryResult *result = [parser parse:@"Team standup" calendar:self.calendar];
+    XCTAssertEqual(result.recurrence, EventQuickEntryRecurrenceNone);
+
+    EventQuickEntryResult *dailyResult = [parser parse:@"Standup every day" calendar:self.calendar];
+    XCTAssertEqual(dailyResult.recurrence, EventQuickEntryRecurrenceEveryDay);
+}
+
 @end
