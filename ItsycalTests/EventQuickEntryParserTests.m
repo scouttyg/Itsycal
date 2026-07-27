@@ -7,6 +7,8 @@
 
 #import <XCTest/XCTest.h>
 #import "EventQuickEntryParser.h"
+#import "EventQuickEntryKeywords.h"
+#import "EventQuickEntryLanguagePackRegistry.h"
 
 @interface EventQuickEntryParserTests : XCTestCase
 @property (nonatomic) EventQuickEntryParser *parser;

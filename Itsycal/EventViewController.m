@@ -9,6 +9,7 @@
 #import "EventViewController.h"
 #import "EventCenter.h"
 #import "EventQuickEntryParser.h"
+#import "EventQuickEntryLanguagePackRegistry.h"
 #import "MoThemeView.h"
 #import "MoVFLHelper.h"
 #import "NSMenuItem+NoImages.h"
