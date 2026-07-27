@@ -144,10 +144,10 @@ const NSTimeInterval kAlertRegularRelativeOffsets[kAlertRegularNumOffsets] = {
     QuickEntryTooltipWindow *_quickEntryTooltipWindow;
 }
 
-- (BOOL)quickEntrySupportedForCurrentLocale
+- (nullable id<EventQuickEntryLanguagePack>)quickEntryLanguagePackForCurrentLocale
 {
     NSString *language = [NSBundle mainBundle].preferredLocalizations.firstObject;
-    return [language hasPrefix:@"en"];
+    return [EventQuickEntryLanguagePackRegistry packForLanguageCode:language ?: @""];
 }
 
 - (void)loadView
@@ -203,15 +203,15 @@ const NSTimeInterval kAlertRegularRelativeOffsets[kAlertRegularNumOffsets] = {
         return btn;
     };
 
-    // The quick-entry parser's keyword/date matching is English-only (see
-    // EventQuickEntryParser.m). Rather than show a field that silently fails
-    // to understand phrases in other languages, only create it when the
-    // app's active language resolves to English.
-    BOOL quickEntrySupported = [self quickEntrySupportedForCurrentLocale];
+    // Rather than show a field that silently fails to understand phrases in
+    // unsupported languages, only create it when a language pack is
+    // registered for the app's active language (see EventQuickEntryParser.h).
+    id<EventQuickEntryLanguagePack> quickEntryLanguagePack = [self quickEntryLanguagePackForCurrentLocale];
+    BOOL quickEntrySupported = quickEntryLanguagePack != nil;
     if (quickEntrySupported) {
-        _quickEntry = txt(NSLocalizedString(@"Meeting with Bob for 30 min this Friday", @""), YES);
+        _quickEntry = txt(quickEntryLanguagePack.placeholderExample, YES);
         _quickEntry.delegate = self;
-        _quickEntryParser = [EventQuickEntryParser new];
+        _quickEntryParser = [[EventQuickEntryParser alloc] initWithLanguagePack:quickEntryLanguagePack];
 
         // Drives our own tooltip window (see QuickEntryTooltipWindow above) since
         // native tooltips can't appear above this app's NSMainMenuWindowLevel window.

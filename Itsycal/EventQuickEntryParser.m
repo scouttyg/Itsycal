@@ -27,39 +27,157 @@
 
 @end
 
-@implementation EventQuickEntryParser
+@implementation EventQuickEntryKeywords
+@end
 
-- (EventQuickEntryResult *)parse:(NSString *)text calendar:(NSCalendar *)calendar
+#pragma mark - EventQuickEntryKeywordLanguagePack
+
+@implementation EventQuickEntryKeywordLanguagePack
 {
-    EventQuickEntryResult *result = [EventQuickEntryResult new];
-    NSString *original = text ?: @"";
-    NSMutableString *masked = [original mutableCopy];
-    NSMutableArray<EventQuickEntrySpan *> *recognizedSpans = [NSMutableArray new];
-
-    EventQuickEntrySpan *dateSpan = [self applyDateDetectionToMasked:masked original:original result:result calendar:calendar];
-    if (dateSpan) [recognizedSpans addObject:dateSpan];
-
-    EventQuickEntrySpan *durationSpan = [self applyDurationDetectionToMasked:masked result:result];
-    if (durationSpan) [recognizedSpans addObject:durationSpan];
-
-    EventQuickEntrySpan *locationSpan = [self applyLocationDetectionToMasked:masked result:result];
-    if (locationSpan) [recognizedSpans addObject:locationSpan];
-
-    EventQuickEntrySpan *recurrenceSpan = [self applyRecurrenceDetectionToMasked:masked result:result];
-    if (recurrenceSpan) [recognizedSpans addObject:recurrenceSpan];
-
-    result.title = [self titleFromMaskedText:masked];
-    result.recognizedSpans = recognizedSpans;
-
-    return result;
+    EventQuickEntryKeywords *_keywords;
+    NSRegularExpression *_timeRegex;
+    NSRegularExpression *_durationRegex;
+    NSRegularExpression *_mealWordRegex;        // nil if no meal words configured
+    NSRegularExpression *_danglingPrefixRegex;  // nil if no dangling words configured
+    NSRegularExpression *_locationRegex;
+    NSArray<NSRegularExpression *> *_recurrenceRegexes; // ordered: every2Weeks, everyDay, everyWeek, everyMonth, everyYear
+    NSArray<NSNumber *> *_recurrenceValues;             // parallel EventQuickEntryRecurrence values
+    NSArray<NSString *> *_recurrenceLabels;             // parallel display labels
 }
 
-#pragma mark - Date/time
+- (instancetype)initWithKeywords:(EventQuickEntryKeywords *)keywords
+{
+    self = [super init];
+    if (self) {
+        _keywords = keywords;
+        [self buildTimeRegexFromKeywords:keywords];
+        [self buildDurationRegexFromKeywords:keywords];
+        [self buildMealWordRegexFromKeywords:keywords];
+        [self buildDanglingPrefixRegexFromKeywords:keywords];
+        [self buildLocationRegexFromKeywords:keywords];
+        [self buildRecurrenceRegexesFromKeywords:keywords];
+    }
+    return self;
+}
 
-- (EventQuickEntrySpan *)applyDateDetectionToMasked:(NSMutableString *)masked
-                                            original:(NSString *)original
-                                              result:(EventQuickEntryResult *)result
-                                            calendar:(NSCalendar *)calendar
+#pragma mark Regex construction
+
++ (NSString *)alternationPatternForPhrases:(NSArray<NSString *> *)phrases
+{
+    NSMutableArray<NSString *> *escaped = [NSMutableArray new];
+    for (NSString *phrase in phrases) {
+        [escaped addObject:[NSRegularExpression escapedPatternForString:phrase]];
+    }
+    return [escaped componentsJoinedByString:@"|"];
+}
+
+- (void)buildTimeRegexFromKeywords:(EventQuickEntryKeywords *)keywords
+{
+    // The digit-based patterns are universal (digits are digits regardless
+    // of language); only the non-numeric time-of-day words vary.
+    NSString *wordsAlt = [[self class] alternationPatternForPhrases:keywords.explicitTimeWords];
+    NSString *wordsBranch = wordsAlt.length > 0 ? [NSString stringWithFormat:@"|\\b(?:%@)\\b", wordsAlt] : @"";
+    NSString *pattern = [NSString stringWithFormat:@"(?i)\\b\\d{1,2}(:\\d{2})?\\s*(am|pm|a\\.m\\.|p\\.m\\.)\\b|\\b\\d{1,2}:\\d{2}\\b%@", wordsBranch];
+    _timeRegex = [NSRegularExpression regularExpressionWithPattern:pattern options:0 error:nil];
+}
+
+- (void)buildDurationRegexFromKeywords:(EventQuickEntryKeywords *)keywords
+{
+    NSString *forWord = [NSRegularExpression escapedPatternForString:keywords.durationPrefixWord];
+    NSString *halfHour = [NSRegularExpression escapedPatternForString:keywords.halfHourPhrase];
+    NSString *oneHourAlt = [[self class] alternationPatternForPhrases:keywords.oneHourPhrases];
+    NSString *hourUnitAlt = [[self class] alternationPatternForPhrases:keywords.hourUnitWords];
+    NSString *minuteUnitAlt = [[self class] alternationPatternForPhrases:keywords.minuteUnitWords];
+
+    // Four alternatives, each with its own capture group so the matching
+    // branch can be identified without relying on language-specific
+    // substring checks (e.g. English "half"/"hour") on the matched text.
+    NSString *pattern = [NSString stringWithFormat:
+        @"(?i)\\b%@\\s+(%@)\\b|\\b%@\\s+(%@)\\b|\\b%@\\s+(\\d+)\\s*(?:%@)\\b|\\b%@\\s+(\\d+)\\s*(?:%@)\\b",
+        forWord, halfHour, forWord, oneHourAlt, forWord, hourUnitAlt, forWord, minuteUnitAlt];
+    _durationRegex = [NSRegularExpression regularExpressionWithPattern:pattern options:0 error:nil];
+}
+
+- (void)buildMealWordRegexFromKeywords:(EventQuickEntryKeywords *)keywords
+{
+    if (keywords.mealWords.count == 0) {
+        _mealWordRegex = nil;
+        return;
+    }
+    NSString *alt = [[self class] alternationPatternForPhrases:keywords.mealWords];
+    NSString *pattern = [NSString stringWithFormat:@"(?i)^\\b(?:%@)\\b\\s*", alt];
+    _mealWordRegex = [NSRegularExpression regularExpressionWithPattern:pattern options:0 error:nil];
+}
+
+- (void)buildDanglingPrefixRegexFromKeywords:(EventQuickEntryKeywords *)keywords
+{
+    if (keywords.danglingPrefixWords.count == 0) {
+        _danglingPrefixRegex = nil;
+        return;
+    }
+    NSString *alt = [[self class] alternationPatternForPhrases:keywords.danglingPrefixWords];
+    NSString *pattern = [NSString stringWithFormat:@"(?i)\\b(?:%@)\\s+$", alt];
+    _danglingPrefixRegex = [NSRegularExpression regularExpressionWithPattern:pattern options:0 error:nil];
+}
+
+- (void)buildLocationRegexFromKeywords:(EventQuickEntryKeywords *)keywords
+{
+    NSString *prefixAlt = [[self class] alternationPatternForPhrases:keywords.locationPrefixWords];
+    // "@" is always recognized as a location prefix regardless of language.
+    // The word-alternatives are wrapped in \b so the boundary doesn't apply
+    // to "@" itself (a non-word character can't be preceded by \b the way
+    // "@ Cafe Luna" needs it to).
+    NSString *pattern = [NSString stringWithFormat:@"(?i)(?:\\b(?:%@)|@)\\s+([A-Za-z0-9][^,]*?)(?:\\s+(?:%@|@))?\\s*$", prefixAlt, prefixAlt];
+    _locationRegex = [NSRegularExpression regularExpressionWithPattern:pattern options:0 error:nil];
+}
+
+- (void)buildRecurrenceRegexesFromKeywords:(EventQuickEntryKeywords *)keywords
+{
+    // "every other week"-style phrases are checked before the plain
+    // "every week"-style pattern so they aren't shadowed by it.
+    NSArray<NSString *> *orderedKeys = @[@"every2Weeks", @"everyDay", @"everyWeek", @"everyMonth", @"everyYear"];
+    NSArray<NSNumber *> *orderedValues = @[
+        @(EventQuickEntryRecurrenceEvery2Weeks),
+        @(EventQuickEntryRecurrenceEveryDay),
+        @(EventQuickEntryRecurrenceEveryWeek),
+        @(EventQuickEntryRecurrenceEveryMonth),
+        @(EventQuickEntryRecurrenceEveryYear),
+    ];
+    NSMutableArray<NSRegularExpression *> *regexes = [NSMutableArray new];
+    NSMutableArray<NSString *> *labels = [NSMutableArray new];
+    for (NSString *key in orderedKeys) {
+        NSArray<NSString *> *phrases = keywords.recurrencePhrasesByFrequencyKey[key] ?: @[];
+        NSString *alt = [[self class] alternationPatternForPhrases:phrases];
+        NSString *pattern = [NSString stringWithFormat:@"(?i)\\b(?:%@)\\b", alt];
+        [regexes addObject:[NSRegularExpression regularExpressionWithPattern:pattern options:0 error:nil]];
+        [labels addObject:keywords.recurrenceLabelsByFrequencyKey[key] ?: @""];
+    }
+    _recurrenceRegexes = regexes;
+    _recurrenceValues = orderedValues;
+    _recurrenceLabels = labels;
+}
+
+#pragma mark EventQuickEntryLanguagePack — placeholder
+
+- (NSString *)placeholderExample
+{
+    return _keywords.placeholderExample;
+}
+
+#pragma mark Shared masking utility
+
++ (void)blankRange:(NSRange)range inMasked:(NSMutableString *)masked
+{
+    NSString *blank = [@"" stringByPaddingToLength:range.length withString:@" " startingAtIndex:0];
+    [masked replaceCharactersInRange:range withString:blank];
+}
+
+#pragma mark EventQuickEntryLanguagePack — Date/time
+
+- (nullable EventQuickEntrySpan *)dateSpanInMasked:(NSMutableString *)masked
+                                           original:(NSString *)original
+                                             result:(EventQuickEntryResult *)result
+                                           calendar:(NSCalendar *)calendar
 {
     NSError *error = nil;
     NSDataDetector *detector = [NSDataDetector dataDetectorWithTypes:NSTextCheckingTypeDate error:&error];
@@ -75,68 +193,59 @@
     result.hasExplicitTime = [self textContainsExplicitTime:matchedText];
 
     // NSDataDetector computes a duration for time-range phrases like
-    // "3-4pm". Set it here so an explicit "for X minutes" phrase (handled
-    // later in the pipeline) can still unconditionally override it.
+    // "3-4pm". Set it here so an explicit "for X minutes"-style phrase
+    // (handled by -durationSpanInMasked:result:) can still unconditionally
+    // override it, since it runs later in the pipeline.
     if (match.duration > 0) {
         result.durationMinutes = (NSInteger)round(match.duration / 60.0);
     }
 
     NSRange rangeToBlank = [self rangeToBlankForDateMatch:match inOriginal:original];
-    [self blankRange:rangeToBlank inMasked:masked];
+    [[self class] blankRange:rangeToBlank inMasked:masked];
 
     EventQuickEntrySpan *span = [EventQuickEntrySpan new];
     span.range = rangeToBlank;
     span.kind = EventQuickEntrySpanKindDate;
-    span.label = @"Date";
+    span.label = _keywords.dateSpanLabel;
     span.displayValue = [self displayValueForDate:result.date hasExplicitTime:result.hasExplicitTime calendar:calendar];
     return span;
 }
 
 // NSDataDetector's own match range doesn't always line up with what should
 // actually be blanked out of the title: it sometimes folds a leading meal
-// word ("Lunch", "Dinner") into its own match as a time-of-day reference,
-// and it never includes a dangling leading preposition ("on Friday") that
-// precedes the match. This adjusts for both before anything gets blanked.
+// word into its own match as a time-of-day reference, and it never
+// includes a dangling leading word (e.g. English "on", Spanish "el"/"esta")
+// that precedes the match. This adjusts for both before anything is blanked.
 - (NSRange)rangeToBlankForDateMatch:(NSTextCheckingResult *)match inOriginal:(NSString *)original
 {
     NSRange coreRange = match.range;
-    static NSRegularExpression *mealWordRegex;
-    static dispatch_once_t mealWordOnceToken;
-    dispatch_once(&mealWordOnceToken, ^{
-        mealWordRegex = [NSRegularExpression regularExpressionWithPattern:@"(?i)^\\b(?:lunch|breakfast|dinner|brunch)\\b\\s*"
-                                                                    options:0
-                                                                      error:nil];
-    });
-    NSTextCheckingResult *mealMatch = [mealWordRegex firstMatchInString:original options:0 range:match.range];
-    if (mealMatch) {
-        NSUInteger newLocation = NSMaxRange(mealMatch.range);
-        coreRange = NSMakeRange(newLocation, NSMaxRange(match.range) - newLocation);
+    if (_mealWordRegex) {
+        NSTextCheckingResult *mealMatch = [_mealWordRegex firstMatchInString:original options:0 range:match.range];
+        if (mealMatch) {
+            NSUInteger newLocation = NSMaxRange(mealMatch.range);
+            coreRange = NSMakeRange(newLocation, NSMaxRange(match.range) - newLocation);
+        }
     }
 
     NSRange rangeToBlank = coreRange;
-
-    static NSRegularExpression *danglingOnRegex;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        danglingOnRegex = [NSRegularExpression regularExpressionWithPattern:@"(?i)\\bon\\s+$"
-                                                                      options:0
-                                                                        error:nil];
-    });
-
-    NSTextCheckingResult *onMatch = [danglingOnRegex firstMatchInString:original
-                                                                  options:0
-                                                                    range:NSMakeRange(0, coreRange.location)];
-    if (onMatch) {
-        rangeToBlank = NSMakeRange(onMatch.range.location, NSMaxRange(coreRange) - onMatch.range.location);
+    if (_danglingPrefixRegex) {
+        NSTextCheckingResult *danglingMatch = [_danglingPrefixRegex firstMatchInString:original
+                                                                                 options:0
+                                                                                   range:NSMakeRange(0, coreRange.location)];
+        if (danglingMatch) {
+            rangeToBlank = NSMakeRange(danglingMatch.range.location, NSMaxRange(coreRange) - danglingMatch.range.location);
+        }
     }
-
     return rangeToBlank;
 }
 
 - (NSString *)displayValueForDate:(NSDate *)date hasExplicitTime:(BOOL)hasExplicitTime calendar:(NSCalendar *)calendar
 {
+    NSLocale *locale = [NSLocale localeWithLocaleIdentifier:_keywords.languageCode];
+
     NSDateFormatter *dateFormatter = [NSDateFormatter new];
     dateFormatter.calendar = calendar;
+    dateFormatter.locale = locale;
     [dateFormatter setLocalizedDateFormatFromTemplate:@"EEEEMMMMd"];
     NSString *dateString = [dateFormatter stringFromDate:date];
 
@@ -144,92 +253,74 @@
 
     NSDateFormatter *timeFormatter = [NSDateFormatter new];
     timeFormatter.calendar = calendar;
+    timeFormatter.locale = locale;
     timeFormatter.dateStyle = NSDateFormatterNoStyle;
     timeFormatter.timeStyle = NSDateFormatterShortStyle;
     NSString *timeString = [timeFormatter stringFromDate:date];
 
-    return [NSString stringWithFormat:@"%@ at %@", dateString, timeString];
+    return [NSString stringWithFormat:@"%@ %@ %@", dateString, _keywords.dateTimeConnector, timeString];
 }
 
 - (BOOL)textContainsExplicitTime:(NSString *)text
 {
-    static NSRegularExpression *timeRegex;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        timeRegex = [NSRegularExpression regularExpressionWithPattern:@"(?i)\\b\\d{1,2}(:\\d{2})?\\s*(am|pm|a\\.m\\.|p\\.m\\.)\\b|\\b\\d{1,2}:\\d{2}\\b|\\bnoon\\b|\\bmidnight\\b|\\bmorning\\b|\\bafternoon\\b|\\bevening\\b"
-                                                                options:0
-                                                                  error:nil];
-    });
-    return [timeRegex firstMatchInString:text options:0 range:NSMakeRange(0, text.length)] != nil;
+    return [_timeRegex firstMatchInString:text options:0 range:NSMakeRange(0, text.length)] != nil;
 }
 
-#pragma mark - Duration
+#pragma mark EventQuickEntryLanguagePack — Duration
 
-- (EventQuickEntrySpan *)applyDurationDetectionToMasked:(NSMutableString *)masked result:(EventQuickEntryResult *)result
+- (nullable EventQuickEntrySpan *)durationSpanInMasked:(NSMutableString *)masked result:(EventQuickEntryResult *)result
 {
-    static NSRegularExpression *durationRegex;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        durationRegex = [NSRegularExpression regularExpressionWithPattern:@"(?i)\\bfor\\s+half\\s+an\\s+hour\\b|\\bfor\\s+(?:a|an)\\s+hour\\b|\\bfor\\s+(\\d+)\\s*(?:hours|hour|hrs|hr)\\b|\\bfor\\s+(\\d+)\\s*(?:minutes|minute|mins|min)\\b"
-                                                                     options:0
-                                                                       error:nil];
-    });
-
-    NSTextCheckingResult *match = [durationRegex firstMatchInString:masked options:0 range:NSMakeRange(0, masked.length)];
+    NSTextCheckingResult *match = [_durationRegex firstMatchInString:masked options:0 range:NSMakeRange(0, masked.length)];
     if (!match) return nil;
 
-    NSString *matchedText = [masked substringWithRange:match.range];
-    NSString *lowerMatched = matchedText.lowercaseString;
     NSInteger minutes = 0;
-    if ([lowerMatched containsString:@"half"]) {
-        minutes = 30;
-    } else if ([lowerMatched hasSuffix:@"hour"]) {
-        minutes = 60; // "for a hour" / "for an hour"
-    } else if (match.numberOfRanges > 1 && [match rangeAtIndex:1].location != NSNotFound) {
-        minutes = [[masked substringWithRange:[match rangeAtIndex:1]] integerValue] * 60;
+    if (match.numberOfRanges > 1 && [match rangeAtIndex:1].location != NSNotFound) {
+        minutes = 30; // half-hour idiom
     } else if (match.numberOfRanges > 2 && [match rangeAtIndex:2].location != NSNotFound) {
-        minutes = [[masked substringWithRange:[match rangeAtIndex:2]] integerValue];
+        minutes = 60; // one-hour idiom
+    } else if (match.numberOfRanges > 3 && [match rangeAtIndex:3].location != NSNotFound) {
+        minutes = [[masked substringWithRange:[match rangeAtIndex:3]] integerValue] * 60;
+    } else if (match.numberOfRanges > 4 && [match rangeAtIndex:4].location != NSNotFound) {
+        minutes = [[masked substringWithRange:[match rangeAtIndex:4]] integerValue];
     }
 
     result.durationMinutes = minutes;
-    [self blankRange:match.range inMasked:masked];
+    [[self class] blankRange:match.range inMasked:masked];
 
     EventQuickEntrySpan *span = [EventQuickEntrySpan new];
     span.range = match.range;
     span.kind = EventQuickEntrySpanKindDuration;
-    span.label = @"Duration";
+    span.label = _keywords.durationSpanLabel;
     span.displayValue = [self displayValueForDurationMinutes:minutes];
     return span;
 }
 
 - (NSString *)displayValueForDurationMinutes:(NSInteger)minutes
 {
+    NSString *hourWordPlural = _keywords.hourUnitWords.firstObject ?: @"";
+    NSString *hourWordSingular = _keywords.hourUnitWords.count > 1 ? _keywords.hourUnitWords[1] : hourWordPlural;
+    NSString *minuteWordPlural = _keywords.minuteUnitWords.firstObject ?: @"";
+
     NSInteger hours = minutes / 60;
     NSInteger remainder = minutes % 60;
 
     if (hours == 0) {
-        return [NSString stringWithFormat:@"%ld minutes", (long)remainder];
+        return [NSString stringWithFormat:@"%ld %@", (long)remainder, minuteWordPlural];
     }
-    NSString *hoursPart = (hours == 1) ? @"1 hour" : [NSString stringWithFormat:@"%ld hours", (long)hours];
+    NSString *hoursPart = (hours == 1)
+        ? [NSString stringWithFormat:@"1 %@", hourWordSingular]
+        : [NSString stringWithFormat:@"%ld %@", (long)hours, hourWordPlural];
     if (remainder == 0) {
         return hoursPart;
     }
-    return [NSString stringWithFormat:@"%@ %ld minutes", hoursPart, (long)remainder];
+    return [NSString stringWithFormat:@"%@ %ld %@", hoursPart, (long)remainder, minuteWordPlural];
 }
 
-#pragma mark - Location
+#pragma mark EventQuickEntryLanguagePack — Location
 
-- (EventQuickEntrySpan *)applyLocationDetectionToMasked:(NSMutableString *)masked result:(EventQuickEntryResult *)result
+- (nullable EventQuickEntrySpan *)locationSpanInMasked:(NSMutableString *)masked result:(EventQuickEntryResult *)result
 {
-    static NSRegularExpression *locationRegex;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        locationRegex = [NSRegularExpression regularExpressionWithPattern:@"(?i)(?:\\b(?:at|in)|@)\\s+([A-Za-z0-9][^,]*?)(?:\\s+(?:at|in|@))?\\s*$"
-                                                                   options:0
-                                                                     error:nil];
-    });
-
-    NSTextCheckingResult *match = [locationRegex firstMatchInString:masked options:0 range:NSMakeRange(0, masked.length)];
+    NSTextCheckingResult *match = [_locationRegex firstMatchInString:masked options:0 range:NSMakeRange(0, masked.length)];
     if (!match) return nil;
 
     NSRange placeRange = [match rangeAtIndex:1];
@@ -239,83 +330,206 @@
     if (place.length == 0) return nil;
 
     result.location = place;
-    [self blankRange:match.range inMasked:masked];
+    [[self class] blankRange:match.range inMasked:masked];
 
     EventQuickEntrySpan *span = [EventQuickEntrySpan new];
     span.range = match.range;
     span.kind = EventQuickEntrySpanKindLocation;
-    span.label = @"Location";
+    span.label = _keywords.locationSpanLabel;
     span.displayValue = place;
     return span;
 }
 
-#pragma mark - Recurrence
+#pragma mark EventQuickEntryLanguagePack — Recurrence
 
-- (EventQuickEntrySpan *)applyRecurrenceDetectionToMasked:(NSMutableString *)masked result:(EventQuickEntryResult *)result
+- (nullable EventQuickEntrySpan *)recurrenceSpanInMasked:(NSMutableString *)masked result:(EventQuickEntryResult *)result
 {
-    static NSArray<NSRegularExpression *> *recurrenceRegexes;
-    static NSArray<NSNumber *> *recurrenceValues;
-    static NSArray<NSString *> *recurrenceLabels;
-    static dispatch_once_t onceToken;
-    dispatch_once(&onceToken, ^{
-        // "every other week"/"biweekly" is checked before the plain
-        // "every week" pattern so it isn't shadowed by it.
-        NSArray<NSString *> *patterns = @[
-            @"(?i)\\bevery\\s+other\\s+week\\b|\\bbiweekly\\b",
-            @"(?i)\\bevery\\s+day\\b|\\bdaily\\b",
-            @"(?i)\\bevery\\s+week\\b|\\bweekly\\b",
-            @"(?i)\\bevery\\s+month\\b|\\bmonthly\\b",
-            @"(?i)\\bevery\\s+year\\b|\\byearly\\b|\\bannually\\b",
-        ];
-        NSMutableArray<NSRegularExpression *> *regexes = [NSMutableArray new];
-        for (NSString *pattern in patterns) {
-            [regexes addObject:[NSRegularExpression regularExpressionWithPattern:pattern options:0 error:nil]];
-        }
-        recurrenceRegexes = regexes;
-        recurrenceValues = @[
-            @(EventQuickEntryRecurrenceEvery2Weeks),
-            @(EventQuickEntryRecurrenceEveryDay),
-            @(EventQuickEntryRecurrenceEveryWeek),
-            @(EventQuickEntryRecurrenceEveryMonth),
-            @(EventQuickEntryRecurrenceEveryYear),
-        ];
-        // Index-parallel with recurrenceValues; must match EventViewController's
-        // _repPopup item titles exactly (EventViewController.m).
-        recurrenceLabels = @[
-            @"Every 2 Weeks",
-            @"Every Day",
-            @"Every Week",
-            @"Every Month",
-            @"Every Year",
-        ];
-    });
-
-    for (NSInteger i = 0; i < (NSInteger)recurrenceRegexes.count; i++) {
-        NSTextCheckingResult *match = [recurrenceRegexes[i] firstMatchInString:masked options:0 range:NSMakeRange(0, masked.length)];
+    for (NSInteger i = 0; i < (NSInteger)_recurrenceRegexes.count; i++) {
+        NSTextCheckingResult *match = [_recurrenceRegexes[i] firstMatchInString:masked options:0 range:NSMakeRange(0, masked.length)];
         if (match) {
-            result.recurrence = (EventQuickEntryRecurrence)recurrenceValues[i].integerValue;
-            [self blankRange:match.range inMasked:masked];
+            result.recurrence = (EventQuickEntryRecurrence)_recurrenceValues[i].integerValue;
+            [[self class] blankRange:match.range inMasked:masked];
 
             EventQuickEntrySpan *span = [EventQuickEntrySpan new];
             span.range = match.range;
             span.kind = EventQuickEntrySpanKindRepeat;
-            span.label = @"Repeat";
-            span.displayValue = recurrenceLabels[i];
+            span.label = _keywords.repeatSpanLabel;
+            span.displayValue = _recurrenceLabels[i];
             return span;
         }
     }
     return nil;
 }
 
-#pragma mark - Title / helpers
+@end
 
-- (NSString *)titleFromMaskedText:(NSString *)masked
+#pragma mark - EventQuickEntryEnglishLanguagePack
+
+@implementation EventQuickEntryEnglishLanguagePack
+
+- (instancetype)init
+{
+    EventQuickEntryKeywords *keywords = [EventQuickEntryKeywords new];
+    keywords.languageCode = @"en";
+    keywords.durationPrefixWord = @"for";
+    keywords.halfHourPhrase = @"half an hour";
+    keywords.oneHourPhrases = @[@"a hour", @"an hour"];
+    keywords.hourUnitWords = @[@"hours", @"hour", @"hrs", @"hr"];
+    keywords.minuteUnitWords = @[@"minutes", @"minute", @"mins", @"min"];
+    keywords.locationPrefixWords = @[@"at", @"in"];
+    keywords.danglingPrefixWords = @[@"on"];
+    keywords.mealWords = @[@"lunch", @"breakfast", @"dinner", @"brunch"];
+    keywords.explicitTimeWords = @[@"noon", @"midnight", @"morning", @"afternoon", @"evening"];
+    keywords.recurrencePhrasesByFrequencyKey = @{
+        @"every2Weeks": @[@"every other week", @"biweekly"],
+        @"everyDay":    @[@"every day", @"daily"],
+        @"everyWeek":   @[@"every week", @"weekly"],
+        @"everyMonth":  @[@"every month", @"monthly"],
+        @"everyYear":   @[@"every year", @"yearly", @"annually"],
+    };
+    keywords.recurrenceLabelsByFrequencyKey = @{
+        @"every2Weeks": @"Every 2 Weeks",
+        @"everyDay":    @"Every Day",
+        @"everyWeek":   @"Every Week",
+        @"everyMonth":  @"Every Month",
+        @"everyYear":   @"Every Year",
+    };
+    keywords.dateSpanLabel = @"Date";
+    keywords.durationSpanLabel = @"Duration";
+    keywords.locationSpanLabel = @"Location";
+    keywords.repeatSpanLabel = @"Repeat";
+    keywords.dateTimeConnector = @"at";
+    keywords.placeholderExample = @"Meeting with Bob for 30 min this Friday";
+    return [self initWithKeywords:keywords];
+}
+
+@end
+
+#pragma mark - EventQuickEntrySpanishLanguagePack
+
+@implementation EventQuickEntrySpanishLanguagePack
+
+- (instancetype)init
+{
+    EventQuickEntryKeywords *keywords = [EventQuickEntryKeywords new];
+    keywords.languageCode = @"es";
+    keywords.durationPrefixWord = @"durante";
+    keywords.halfHourPhrase = @"media hora";
+    keywords.oneHourPhrases = @[@"una hora"];
+    keywords.hourUnitWords = @[@"horas", @"hora"];
+    keywords.minuteUnitWords = @[@"minutos", @"minuto"];
+    // "en" only — "a" is too common a short preposition in Spanish and
+    // risks false-positive location matches on leftover text.
+    keywords.locationPrefixWords = @[@"en"];
+    // Verified via direct NSDataDetector probing: "el próximo lunes" and
+    // "el viernes a las 15:00" both leave a leading "el" stranded; "esta
+    // noche" leaves "esta" stranded. Other articles/demonstratives included
+    // by analogy, not individually verified.
+    keywords.danglingPrefixWords = @[@"el", @"la", @"los", @"las", @"esta", @"este"];
+    keywords.mealWords = @[@"almuerzo", @"desayuno", @"cena"];
+    // Deliberately excludes "mañana": it means both "tomorrow" and
+    // "morning" in Spanish, and probing showed NSDataDetector using it
+    // as a plain date word (not resolving a specific hour) far more often
+    // than as a time-of-day word — including it here would make
+    // hasExplicitTime incorrectly true for phrases that only mean
+    // "tomorrow" with no specific time. "tarde"/"mediodía"/"medianoche"
+    // are included by analogy with "noche" (individually verified via
+    // probing to resolve to a specific hour) but not each verified.
+    keywords.explicitTimeWords = @[@"mediodía", @"medianoche", @"tarde", @"noche"];
+    // Phrases and labels match the app's existing es.lproj/Localizable.strings
+    // translations for the _repPopup items, so quick-entry's tooltip text
+    // is consistent with what the popup itself already shows.
+    keywords.recurrencePhrasesByFrequencyKey = @{
+        @"every2Weeks": @[@"cada 2 semanas", @"cada dos semanas", @"quincenal"],
+        @"everyDay":    @[@"todos los días", @"todos los dias", @"diariamente", @"diario"],
+        @"everyWeek":   @[@"todas las semanas", @"semanalmente"],
+        @"everyMonth":  @[@"todos los meses", @"mensualmente"],
+        @"everyYear":   @[@"todos los años", @"todos los anos", @"anualmente"],
+    };
+    keywords.recurrenceLabelsByFrequencyKey = @{
+        @"every2Weeks": @"Cada 2 semanas",
+        @"everyDay":    @"Todos los días",
+        @"everyWeek":   @"Todas las semanas",
+        @"everyMonth":  @"Todos los meses",
+        @"everyYear":   @"Todos los años",
+    };
+    keywords.dateSpanLabel = @"Fecha";
+    keywords.durationSpanLabel = @"Duración";
+    keywords.locationSpanLabel = @"Ubicación";
+    keywords.repeatSpanLabel = @"Repetir";
+    keywords.dateTimeConnector = @"a las";
+    keywords.placeholderExample = @"Reunión con Bob durante 30 min este viernes";
+    return [self initWithKeywords:keywords];
+}
+
+@end
+
+#pragma mark - EventQuickEntryLanguagePackRegistry
+
+@implementation EventQuickEntryLanguagePackRegistry
+
++ (nullable id<EventQuickEntryLanguagePack>)packForLanguageCode:(NSString *)languageCode
+{
+    if ([languageCode hasPrefix:@"en"]) return [EventQuickEntryEnglishLanguagePack new];
+    if ([languageCode hasPrefix:@"es"]) return [EventQuickEntrySpanishLanguagePack new];
+    return nil;
+}
+
+@end
+
+#pragma mark - EventQuickEntryParser
+
+@implementation EventQuickEntryParser
+{
+    id<EventQuickEntryLanguagePack> _languagePack;
+}
+
+- (instancetype)init
+{
+    return [self initWithLanguagePack:[EventQuickEntryEnglishLanguagePack new]];
+}
+
+- (instancetype)initWithLanguagePack:(id<EventQuickEntryLanguagePack>)languagePack
+{
+    self = [super init];
+    if (self) {
+        _languagePack = languagePack;
+    }
+    return self;
+}
+
+- (EventQuickEntryResult *)parse:(NSString *)text calendar:(NSCalendar *)calendar
+{
+    EventQuickEntryResult *result = [EventQuickEntryResult new];
+    NSString *original = text ?: @"";
+    NSMutableString *masked = [original mutableCopy];
+    NSMutableArray<EventQuickEntrySpan *> *recognizedSpans = [NSMutableArray new];
+
+    EventQuickEntrySpan *dateSpan = [_languagePack dateSpanInMasked:masked original:original result:result calendar:calendar];
+    if (dateSpan) [recognizedSpans addObject:dateSpan];
+
+    EventQuickEntrySpan *durationSpan = [_languagePack durationSpanInMasked:masked result:result];
+    if (durationSpan) [recognizedSpans addObject:durationSpan];
+
+    EventQuickEntrySpan *locationSpan = [_languagePack locationSpanInMasked:masked result:result];
+    if (locationSpan) [recognizedSpans addObject:locationSpan];
+
+    EventQuickEntrySpan *recurrenceSpan = [_languagePack recurrenceSpanInMasked:masked result:result];
+    if (recurrenceSpan) [recognizedSpans addObject:recurrenceSpan];
+
+    result.title = [[self class] titleFromMaskedText:masked];
+    result.recognizedSpans = recognizedSpans;
+
+    return result;
+}
+
++ (NSString *)titleFromMaskedText:(NSString *)masked
 {
     NSString *collapsed = [self collapseWhitespace:masked];
     return [collapsed stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
 }
 
-- (NSString *)collapseWhitespace:(NSString *)text
++ (NSString *)collapseWhitespace:(NSString *)text
 {
     static NSRegularExpression *whitespaceRegex;
     static dispatch_once_t onceToken;
@@ -323,12 +537,6 @@
         whitespaceRegex = [NSRegularExpression regularExpressionWithPattern:@"\\s+" options:0 error:nil];
     });
     return [whitespaceRegex stringByReplacingMatchesInString:text options:0 range:NSMakeRange(0, text.length) withTemplate:@" "];
-}
-
-- (void)blankRange:(NSRange)range inMasked:(NSMutableString *)masked
-{
-    NSString *blank = [@"" stringByPaddingToLength:range.length withString:@" " startingAtIndex:0];
-    [masked replaceCharactersInRange:range withString:blank];
 }
 
 @end

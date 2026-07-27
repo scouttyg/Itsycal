@@ -292,4 +292,108 @@
     XCTAssertNotNil(result.date);
 }
 
+#pragma mark - Language pack registry
+
+- (void)testRegistryReturnsEnglishPackForEnglishCode
+{
+    id<EventQuickEntryLanguagePack> pack = [EventQuickEntryLanguagePackRegistry packForLanguageCode:@"en"];
+    XCTAssertTrue([pack isKindOfClass:[EventQuickEntryEnglishLanguagePack class]]);
+}
+
+- (void)testRegistryReturnsSpanishPackForSpanishCode
+{
+    id<EventQuickEntryLanguagePack> pack = [EventQuickEntryLanguagePackRegistry packForLanguageCode:@"es"];
+    XCTAssertTrue([pack isKindOfClass:[EventQuickEntrySpanishLanguagePack class]]);
+}
+
+- (void)testRegistryReturnsNilForUnsupportedCode
+{
+    id<EventQuickEntryLanguagePack> pack = [EventQuickEntryLanguagePackRegistry packForLanguageCode:@"de"];
+    XCTAssertNil(pack);
+}
+
+#pragma mark - Spanish language pack
+
+- (void)testSpanishDetectsDateWithoutSwallowingTitle
+{
+    EventQuickEntryParser *parser = [[EventQuickEntryParser alloc] initWithLanguagePack:[EventQuickEntrySpanishLanguagePack new]];
+    EventQuickEntryResult *result = [parser parse:@"Reunión mañana" calendar:self.calendar];
+    XCTAssertEqualObjects(result.title, @"Reunión");
+    XCTAssertNotNil(result.date);
+}
+
+- (void)testSpanishStripsDanglingElBeforeDate
+{
+    EventQuickEntryParser *parser = [[EventQuickEntryParser alloc] initWithLanguagePack:[EventQuickEntrySpanishLanguagePack new]];
+    EventQuickEntryResult *result = [parser parse:@"Reunión el próximo lunes" calendar:self.calendar];
+    XCTAssertEqualObjects(result.title, @"Reunión");
+    XCTAssertNotNil(result.date);
+}
+
+- (void)testSpanishStripsDanglingEstaBeforeDate
+{
+    EventQuickEntryParser *parser = [[EventQuickEntryParser alloc] initWithLanguagePack:[EventQuickEntrySpanishLanguagePack new]];
+    EventQuickEntryResult *result = [parser parse:@"Cena esta noche" calendar:self.calendar];
+    XCTAssertEqualObjects(result.title, @"Cena");
+    XCTAssertNotNil(result.date);
+    XCTAssertTrue(result.hasExplicitTime);
+}
+
+- (void)testSpanishDetectsExplicitTimeWithAmPm
+{
+    EventQuickEntryParser *parser = [[EventQuickEntryParser alloc] initWithLanguagePack:[EventQuickEntrySpanishLanguagePack new]];
+    EventQuickEntryResult *result = [parser parse:@"Almuerzo mañana a las 3pm" calendar:self.calendar];
+    XCTAssertEqualObjects(result.title, @"Almuerzo");
+    XCTAssertTrue(result.hasExplicitTime);
+}
+
+- (void)testSpanishDetectsDuration
+{
+    EventQuickEntryParser *parser = [[EventQuickEntryParser alloc] initWithLanguagePack:[EventQuickEntrySpanishLanguagePack new]];
+    EventQuickEntryResult *result = [parser parse:@"Reunión durante 30 minutos" calendar:self.calendar];
+    XCTAssertEqualObjects(result.title, @"Reunión");
+    XCTAssertEqual(result.durationMinutes, 30);
+}
+
+- (void)testSpanishDetectsHalfHourIdiom
+{
+    EventQuickEntryParser *parser = [[EventQuickEntryParser alloc] initWithLanguagePack:[EventQuickEntrySpanishLanguagePack new]];
+    EventQuickEntryResult *result = [parser parse:@"Reunión durante media hora" calendar:self.calendar];
+    XCTAssertEqual(result.durationMinutes, 30);
+}
+
+- (void)testSpanishDetectsLocation
+{
+    EventQuickEntryParser *parser = [[EventQuickEntryParser alloc] initWithLanguagePack:[EventQuickEntrySpanishLanguagePack new]];
+    EventQuickEntryResult *result = [parser parse:@"Almuerzo en Cafe Luna" calendar:self.calendar];
+    XCTAssertEqualObjects(result.title, @"Almuerzo");
+    XCTAssertEqualObjects(result.location, @"Cafe Luna");
+}
+
+- (void)testSpanishDetectsRecurrenceEveryDay
+{
+    EventQuickEntryParser *parser = [[EventQuickEntryParser alloc] initWithLanguagePack:[EventQuickEntrySpanishLanguagePack new]];
+    EventQuickEntryResult *result = [parser parse:@"Reunión todos los días" calendar:self.calendar];
+    XCTAssertEqualObjects(result.title, @"Reunión");
+    XCTAssertEqual(result.recurrence, EventQuickEntryRecurrenceEveryDay);
+}
+
+- (void)testSpanishRecurrenceSpanDisplayValueMatchesExistingTranslation
+{
+    EventQuickEntryParser *parser = [[EventQuickEntryParser alloc] initWithLanguagePack:[EventQuickEntrySpanishLanguagePack new]];
+    EventQuickEntryResult *result = [parser parse:@"Reunión todos los días" calendar:self.calendar];
+    XCTAssertEqual(result.recognizedSpans.count, (NSUInteger)1);
+    EventQuickEntrySpan *span = result.recognizedSpans.firstObject;
+    XCTAssertEqualObjects(span.label, @"Repetir");
+    XCTAssertEqualObjects(span.displayValue, @"Todos los días");
+}
+
+- (void)testSpanishNoRecurrencePhraseLeavesRecurrenceNone
+{
+    EventQuickEntryParser *parser = [[EventQuickEntryParser alloc] initWithLanguagePack:[EventQuickEntrySpanishLanguagePack new]];
+    EventQuickEntryResult *result = [parser parse:@"Comprar víveres" calendar:self.calendar];
+    XCTAssertEqual(result.recurrence, EventQuickEntryRecurrenceNone);
+    XCTAssertNil(result.location);
+}
+
 @end
