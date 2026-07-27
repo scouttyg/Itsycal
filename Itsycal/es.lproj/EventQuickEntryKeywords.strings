@@ -24,7 +24,12 @@
    recurrencePhrases/recurrenceLabel match the app's existing
    es.lproj/Localizable.strings translations for the repeat popup, so
    quick-entry's tooltip text stays consistent with what the popup itself
-   already shows. */
+   already shows.
+
+   nextWeekPhrase/nextMonthPhrase/relativeWeeksPrefixWord/weekUnitWords are
+   plain translations, not verified against NSDataDetector output — unlike
+   the rest of this file, NSDataDetector plays no role in recognizing these
+   phrases (that's the point of them), so there was nothing to probe. */
 
 "languageCode" = "es";
 
@@ -43,6 +48,12 @@
 "mealWords" = "almuerzo|desayuno|cena";
 "explicitTimeWords" = "mediodía|medianoche|tarde|noche";
 "dateTimeConnector" = "a las";
+
+/* Relative-period phrases NSDataDetector doesn't recognize on its own */
+"nextWeekPhrase" = "la próxima semana";
+"nextMonthPhrase" = "el próximo mes";
+"relativeWeeksPrefixWord" = "en";
+"weekUnitWords" = "semanas|semana";
 
 /* Recurrence phrases, keyed by frequency */
 "recurrencePhrases.every2Weeks" = "cada 2 semanas|cada dos semanas|quincenal";

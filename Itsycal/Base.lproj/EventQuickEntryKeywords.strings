@@ -19,6 +19,12 @@
 "explicitTimeWords" = "noon|midnight|morning|afternoon|evening";
 "dateTimeConnector" = "at";
 
+/* Relative-period phrases NSDataDetector doesn't recognize on its own */
+"nextWeekPhrase" = "next week";
+"nextMonthPhrase" = "next month";
+"relativeWeeksPrefixWord" = "in";
+"weekUnitWords" = "weeks|week";
+
 /* Recurrence phrases, keyed by frequency */
 "recurrencePhrases.every2Weeks" = "every other week|biweekly";
 "recurrencePhrases.everyDay" = "every day|daily";

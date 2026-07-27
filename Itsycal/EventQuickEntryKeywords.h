@@ -81,6 +81,19 @@ NS_ASSUME_NONNULL_BEGIN
 // e.g. "Friday, January 2 <connector> 3:00 PM" — "at" (en) / "a las" (es).
 @property (nonatomic, copy) NSString *dateTimeConnector;
 
+// Relative-period phrases NSDataDetector doesn't recognize on its own —
+// confirmed empirically: it resolves day-of-week-based phrases like "next
+// Tuesday" and count-of-days phrases like "in 3 days" or "tomorrow" just
+// fine, but has no support at all for bare relative-period phrases like
+// "next week" or "next month", even standalone. These four properties
+// drive a small custom detector that runs before NSDataDetector to cover
+// that gap; leaving any of them empty simply disables that phrase (see
+// -relativePeriodSpanInMasked:original:result:calendar:).
+@property (nonatomic, copy) NSString *nextWeekPhrase;      // e.g. "next week" (en)
+@property (nonatomic, copy) NSString *nextMonthPhrase;     // e.g. "next month" (en)
+@property (nonatomic, copy) NSString *relativeWeeksPrefixWord; // word before a count, e.g. "in" (en)
+@property (nonatomic, copy) NSArray<NSString *> *weekUnitWords; // e.g. @[@"weeks", @"week"] (en)
+
 // Example phrase shown as the quick-entry field's placeholder text.
 @property (nonatomic, copy) NSString *placeholderExample;
 

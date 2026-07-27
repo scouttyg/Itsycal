@@ -54,6 +54,10 @@
     keywords.locationSpanLabel = strings[@"locationSpanLabel"];
     keywords.repeatSpanLabel = strings[@"repeatSpanLabel"];
     keywords.dateTimeConnector = strings[@"dateTimeConnector"];
+    keywords.nextWeekPhrase = strings[@"nextWeekPhrase"];
+    keywords.nextMonthPhrase = strings[@"nextMonthPhrase"];
+    keywords.relativeWeeksPrefixWord = strings[@"relativeWeeksPrefixWord"];
+    keywords.weekUnitWords = [self arrayForDelimitedString:strings[@"weekUnitWords"]];
     keywords.placeholderExample = strings[@"placeholderExample"];
     return keywords;
 }
@@ -72,6 +76,7 @@
     NSRegularExpression *_danglingPrefixRegex;  // nil if no dangling words configured
     NSRegularExpression *_locationPrefixRegex;
     NSRegularExpression *_trailingLocationPrefixRegex;
+    NSRegularExpression *_relativePeriodRegex;
     NSArray<NSRegularExpression *> *_recurrenceRegexes; // ordered: every2Weeks, everyDay, everyWeek, everyMonth, everyYear
     NSArray<NSNumber *> *_recurrenceValues;             // parallel EventQuickEntryRecurrence values
     NSArray<NSString *> *_recurrenceLabels;             // parallel display labels
@@ -88,6 +93,7 @@
         [self buildDanglingPrefixRegexFromKeywords:keywords];
         [self buildLocationRegexFromKeywords:keywords];
         [self buildRecurrenceRegexesFromKeywords:keywords];
+        [self buildRelativePeriodRegexFromKeywords:keywords];
     }
     return self;
 }
@@ -242,6 +248,30 @@
     _recurrenceLabels = labels;
 }
 
+- (void)buildRelativePeriodRegexFromKeywords:(EventQuickEntryKeywords *)keywords
+{
+    // Three independently-optional alternatives, each keyed by a fixed
+    // capture group index (1=next week, 2=next month, 3=count of weeks) —
+    // -relativePeriodSpanInMasked:original:result:calendar: reads those
+    // indices directly, so a missing phrase gets "(?!)" rather than being
+    // omitted, keeping the other groups' numbering fixed. Same reasoning
+    // as buildDurationRegexFromKeywords: above.
+    NSString *nextWeek = keywords.nextWeekPhrase.length > 0
+        ? [NSRegularExpression escapedPatternForString:keywords.nextWeekPhrase]
+        : @"(?!)";
+    NSString *nextMonth = keywords.nextMonthPhrase.length > 0
+        ? [NSRegularExpression escapedPatternForString:keywords.nextMonthPhrase]
+        : @"(?!)";
+    NSString *weeksPrefixWord = keywords.relativeWeeksPrefixWord.length > 0
+        ? [NSRegularExpression escapedPatternForString:keywords.relativeWeeksPrefixWord]
+        : @"(?!)";
+    NSString *weekUnitAlt = [[self class] alternationPatternForPhrases:keywords.weekUnitWords] ?: @"(?!)";
+
+    NSString *pattern = [NSString stringWithFormat:@"(?i)\\b(%@)\\b|\\b(%@)\\b|\\b%@\\s+(\\d+)\\s*(?:%@)\\b",
+        nextWeek, nextMonth, weeksPrefixWord, weekUnitAlt];
+    _relativePeriodRegex = [NSRegularExpression regularExpressionWithPattern:pattern options:0 error:nil];
+}
+
 #pragma mark -
 #pragma mark EventQuickEntryLanguagePack — placeholder
 
@@ -264,6 +294,13 @@
 
 - (nullable EventQuickEntrySpan *)dateSpanInMasked:(NSMutableString *)masked original:(NSString *)original result:(EventQuickEntryResult *)result calendar:(NSCalendar *)calendar
 {
+    // Tried first: bare relative-period phrases NSDataDetector doesn't
+    // recognize at all — see -relativePeriodSpanInMasked:original:result:calendar:.
+    // Falls through to NSDataDetector unchanged when none is configured or
+    // none is present in this input.
+    EventQuickEntrySpan *relativeSpan = [self relativePeriodSpanInMasked:masked original:original result:result calendar:calendar];
+    if (relativeSpan) return relativeSpan;
+
     NSError *error = nil;
     NSDataDetector *detector = [NSDataDetector dataDetectorWithTypes:NSTextCheckingTypeDate error:&error];
     if (!detector) return nil;
@@ -294,6 +331,107 @@
     span.label = _keywords.dateSpanLabel;
     span.displayValue = [self displayValueForDate:result.date hasExplicitTime:result.hasExplicitTime calendar:calendar];
     return span;
+}
+
+// Handles bare relative-period phrases NSDataDetector has no support for
+// at all — confirmed empirically: it resolves day-of-week-based phrases
+// ("next Tuesday") and day-count phrases ("in 3 days", "tomorrow") fine,
+// but returns no match whatsoever for "next week", "next month", or
+// "in N weeks", even standalone. Computes today's date (at noon, matching
+// NSDataDetector's own convention for a date with no time) plus the
+// matched offset, then — since this phrase gives no time of its own —
+// folds in a nearby explicit time if one immediately follows, using
+// NSDataDetector just to resolve that isolated time phrase (which it does
+// correctly on its own, per the same probing).
+- (nullable EventQuickEntrySpan *)relativePeriodSpanInMasked:(NSMutableString *)masked original:(NSString *)original result:(EventQuickEntryResult *)result calendar:(NSCalendar *)calendar
+{
+    NSTextCheckingResult *match = [_relativePeriodRegex firstMatchInString:masked options:0 range:NSMakeRange(0, masked.length)];
+    if (!match) return nil;
+
+    NSDateComponents *offset = [NSDateComponents new];
+    if (match.numberOfRanges > 1 && [match rangeAtIndex:1].location != NSNotFound) {
+        offset.weekOfYear = 1;
+    } else if (match.numberOfRanges > 2 && [match rangeAtIndex:2].location != NSNotFound) {
+        offset.month = 1;
+    } else if (match.numberOfRanges > 3 && [match rangeAtIndex:3].location != NSNotFound) {
+        offset.weekOfYear = [[masked substringWithRange:[match rangeAtIndex:3]] integerValue];
+    } else {
+        return nil;
+    }
+
+    NSDateComponents *todayComponents = [calendar components:(NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay) fromDate:[NSDate date]];
+    todayComponents.hour = 12;
+    NSDate *baseDate = [calendar dateByAddingComponents:offset toDate:[calendar dateFromComponents:todayComponents] options:0];
+
+    NSRange matchRange = match.range;
+    BOOL hasExplicitTime = NO;
+    NSDate *combinedDate = [self dateByCombiningBaseDate:baseDate withNearbyTimeInOriginal:original aroundRange:match.range hasExplicitTime:&hasExplicitTime matchRangeOut:&matchRange calendar:calendar];
+
+    result.date = combinedDate;
+    result.hasExplicitTime = hasExplicitTime;
+    [[self class] blankRange:matchRange inMasked:masked];
+
+    EventQuickEntrySpan *span = [EventQuickEntrySpan new];
+    span.range = matchRange;
+    span.kind = EventQuickEntrySpanKindDate;
+    span.label = _keywords.dateSpanLabel;
+    span.displayValue = [self displayValueForDate:combinedDate hasExplicitTime:hasExplicitTime calendar:calendar];
+    return span;
+}
+
+// Looks for an explicit time phrase (e.g. "2pm") immediately before or
+// after `range` — covering both "next week at 2pm" and "at 2pm next
+// week" — allowing one short connecting word in between (e.g. "at") but
+// not arbitrary distance — a time phrase found much further away isn't
+// clearly related to this date and is left alone for something else (or
+// nothing) to deal with. When found, resolves just that isolated phrase's
+// time of day via NSDataDetector — which handles a bare time correctly,
+// unlike a bare relative period — and applies it to `baseDate`. Extends
+// `*matchRangeOut` to cover the connector and time phrase too, so both get
+// blanked out of the title along with the relative-period phrase itself.
+- (NSDate *)dateByCombiningBaseDate:(NSDate *)baseDate withNearbyTimeInOriginal:(NSString *)original aroundRange:(NSRange)range hasExplicitTime:(BOOL *)hasExplicitTime matchRangeOut:(NSRange *)matchRangeOut calendar:(NSCalendar *)calendar
+{
+    NSTextCheckingResult *timeMatch = [self timeMatchNearRange:range inOriginal:original];
+    if (!timeMatch) return baseDate;
+
+    NSError *error = nil;
+    NSDataDetector *timeDetector = [NSDataDetector dataDetectorWithTypes:NSTextCheckingTypeDate error:&error];
+    NSString *timeText = [original substringWithRange:timeMatch.range];
+    NSTextCheckingResult *resolvedTime = [timeDetector firstMatchInString:timeText options:0 range:NSMakeRange(0, timeText.length)];
+    if (!resolvedTime.date) return baseDate;
+
+    NSDateComponents *timeComponents = [calendar components:(NSCalendarUnitHour | NSCalendarUnitMinute) fromDate:resolvedTime.date];
+    *hasExplicitTime = YES;
+    NSUInteger start = MIN(matchRangeOut->location, timeMatch.range.location);
+    NSUInteger end = MAX(NSMaxRange(*matchRangeOut), NSMaxRange(timeMatch.range));
+    *matchRangeOut = NSMakeRange(start, end - start);
+    return [calendar dateBySettingHour:timeComponents.hour minute:timeComponents.minute second:0 ofDate:baseDate options:0];
+}
+
+// Tries the text right after `range` first, then right before it, each
+// subject to the same short-connector-gap requirement. If both happen to
+// have a qualifying time phrase (vanishingly unlikely), the following one
+// wins, matching the more literal reading of "next week [at 2pm]" over
+// "[at 2pm] next week".
+- (nullable NSTextCheckingResult *)timeMatchNearRange:(NSRange)range inOriginal:(NSString *)original
+{
+    NSUInteger afterStart = NSMaxRange(range);
+    NSTextCheckingResult *after = [_timeRegex firstMatchInString:original options:0 range:NSMakeRange(afterStart, original.length - afterStart)];
+    if (after && [self isShortConnectorGapInOriginal:original from:afterStart to:after.range.location]) return after;
+
+    NSArray<NSTextCheckingResult *> *beforeMatches = [_timeRegex matchesInString:original options:0 range:NSMakeRange(0, range.location)];
+    NSTextCheckingResult *before = beforeMatches.lastObject;
+    if (before && [self isShortConnectorGapInOriginal:original from:NSMaxRange(before.range) to:range.location]) return before;
+
+    return nil;
+}
+
+- (BOOL)isShortConnectorGapInOriginal:(NSString *)original from:(NSUInteger)start to:(NSUInteger)end
+{
+    NSString *gapText = [original substringWithRange:NSMakeRange(start, end - start)];
+    NSString *gap = [gapText stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+    if (gap.length == 0) return YES;
+    return gap.length <= 6 && [gap rangeOfCharacterFromSet:[NSCharacterSet whitespaceCharacterSet]].location == NSNotFound;
 }
 
 // NSDataDetector's own match range doesn't always line up with what should
