@@ -50,16 +50,10 @@
 		929223EB1E2D6E0900F1A119 /* HighlightPicker.m in Sources */ = {isa = PBXBuildFile; fileRef = 929223EA1E2D6E0800F1A119 /* HighlightPicker.m */; };
 		92B28CCF210BD17500485AE2 /* Sizer.m in Sources */ = {isa = PBXBuildFile; fileRef = 92B28CCE210BD17500485AE2 /* Sizer.m */; };
 		92CDDE7B1A955D7F00D7675C /* AgendaViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 92CDDE7A1A955D7F00D7675C /* AgendaViewController.m */; };
-		B0B2E0000A00000AAA100000 /* EventQuickEntryParserTests.m in Sources */ = {isa = PBXBuildFile; fileRef = B0B2E0000900000AAA100000 /* EventQuickEntryParserTests.m */; };
 		B0B2E0000D00000AAA100000 /* EventQuickEntryParser.m in Sources */ = {isa = PBXBuildFile; fileRef = B0B2E0000C00000AAA100000 /* EventQuickEntryParser.m */; };
-		B0B2E0000E00000AAA100000 /* EventQuickEntryParser.m in Sources */ = {isa = PBXBuildFile; fileRef = B0B2E0000C00000AAA100000 /* EventQuickEntryParser.m */; };
-		B0B2E0001000000AAA100000 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B0B2E0000F00000AAA100000 /* XCTest.framework */; };
 		B0B2E0001400000AAA100000 /* EventQuickEntryKeywords.strings in Resources */ = {isa = PBXBuildFile; fileRef = B0B2E0001100000AAA100000 /* EventQuickEntryKeywords.strings */; };
-		B0B2E0001500000AAA100000 /* EventQuickEntryKeywords.strings in Resources */ = {isa = PBXBuildFile; fileRef = B0B2E0001100000AAA100000 /* EventQuickEntryKeywords.strings */; };
 		B0B2E0001E00000AAA100000 /* EventQuickEntryKeywords.m in Sources */ = {isa = PBXBuildFile; fileRef = B0B2E0001B00000AAA100000 /* EventQuickEntryKeywords.m */; };
-		B0B2E0001F00000AAA100000 /* EventQuickEntryKeywords.m in Sources */ = {isa = PBXBuildFile; fileRef = B0B2E0001B00000AAA100000 /* EventQuickEntryKeywords.m */; };
 		B0B2E0002000000AAA100000 /* EventQuickEntryLanguagePackRegistry.m in Sources */ = {isa = PBXBuildFile; fileRef = B0B2E0001D00000AAA100000 /* EventQuickEntryLanguagePackRegistry.m */; };
-		B0B2E0002100000AAA100000 /* EventQuickEntryLanguagePackRegistry.m in Sources */ = {isa = PBXBuildFile; fileRef = B0B2E0001D00000AAA100000 /* EventQuickEntryLanguagePackRegistry.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -181,11 +175,8 @@
 		B0A100012F74710000AAA001 /* ko */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.strings; name = ko; path = ko.lproj/MainMenu.strings; sourceTree = "<group>"; };
 		B0A100022F74710000AAA001 /* ko */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.strings; name = ko; path = ko.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		B0A100032F74710000AAA001 /* ko */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.strings; name = ko; path = ko.lproj/Localizable.strings; sourceTree = "<group>"; };
-		B0B2E0000200000AAA100000 /* ItsycalTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ItsycalTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		B0B2E0000900000AAA100000 /* EventQuickEntryParserTests.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = EventQuickEntryParserTests.m; sourceTree = "<group>"; };
 		B0B2E0000B00000AAA100000 /* EventQuickEntryParser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EventQuickEntryParser.h; sourceTree = "<group>"; };
 		B0B2E0000C00000AAA100000 /* EventQuickEntryParser.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = EventQuickEntryParser.m; sourceTree = "<group>"; };
-		B0B2E0000F00000AAA100000 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
 		B0B2E0001900000AAA100000 /* EventQuickEntryLanguagePack.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EventQuickEntryLanguagePack.h; sourceTree = "<group>"; };
 		B0B2E0001A00000AAA100000 /* EventQuickEntryKeywords.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EventQuickEntryKeywords.h; sourceTree = "<group>"; };
 		B0B2E0001B00000AAA100000 /* EventQuickEntryKeywords.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = EventQuickEntryKeywords.m; sourceTree = "<group>"; };
@@ -202,14 +193,6 @@
 			files = (
 				923E78E21D385FD80012979B /* MASShortcut.framework in Frameworks */,
 				923E78E31D385FDB0012979B /* Sparkle.framework in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		B0B2E0000700000AAA100000 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				B0B2E0001000000AAA100000 /* XCTest.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -246,7 +229,6 @@
 			isa = PBXGroup;
 			children = (
 				9242A55E1A82A136005AA4B3 /* Itsycal */,
-				B0B2E0000800000AAA100000 /* ItsycalTests */,
 				9242A55D1A82A136005AA4B3 /* Products */,
 				92CF00001A82A136005AA4B3 /* Local.xcconfig */,
 			);
@@ -256,7 +238,6 @@
 			isa = PBXGroup;
 			children = (
 				9242A55C1A82A136005AA4B3 /* Itsycal.app */,
-				B0B2E0000200000AAA100000 /* ItsycalTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -359,14 +340,6 @@
 			name = MoCode;
 			sourceTree = "<group>";
 		};
-		B0B2E0000800000AAA100000 /* ItsycalTests */ = {
-			isa = PBXGroup;
-			children = (
-				B0B2E0000900000AAA100000 /* EventQuickEntryParserTests.m */,
-			);
-			path = ItsycalTests;
-			sourceTree = "<group>";
-		};
 		B0B2E0002200000AAA100000 /* EventQuickEntry */ = {
 			isa = PBXGroup;
 			children = (
@@ -404,23 +377,6 @@
 			productName = Moon;
 			productReference = 9242A55C1A82A136005AA4B3 /* Itsycal.app */;
 			productType = "com.apple.product-type.application";
-		};
-		B0B2E0000100000AAA100000 /* ItsycalTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = B0B2E0000300000AAA100000 /* Build configuration list for PBXNativeTarget "ItsycalTests" */;
-			buildPhases = (
-				B0B2E0000600000AAA100000 /* Sources */,
-				B0B2E0000700000AAA100000 /* Frameworks */,
-				B0B2E0001600000AAA100000 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = ItsycalTests;
-			productName = ItsycalTests;
-			productReference = B0B2E0000200000AAA100000 /* ItsycalTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -462,7 +418,6 @@
 			projectRoot = "";
 			targets = (
 				9242A55B1A82A136005AA4B3 /* Itsycal */,
-				B0B2E0000100000AAA100000 /* ItsycalTests */,
 			);
 		};
 /* End PBXProject section */
@@ -479,14 +434,6 @@
 				922B6BBE1A87EDBD00DEA9CD /* Localizable.strings in Resources */,
 				9242A56A1A82A136005AA4B3 /* MainMenu.xib in Resources */,
 				B0B2E0001400000AAA100000 /* EventQuickEntryKeywords.strings in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		B0B2E0001600000AAA100000 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				B0B2E0001500000AAA100000 /* EventQuickEntryKeywords.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -553,17 +500,6 @@
 				921E62CD1E26B3EA007B029F /* PrefsGeneralVC.m in Sources */,
 				9242A5631A82A136005AA4B3 /* AppDelegate.m in Sources */,
 				921E62D31E26E038007B029F /* PrefsAboutVC.m in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		B0B2E0000600000AAA100000 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				B0B2E0000A00000AAA100000 /* EventQuickEntryParserTests.m in Sources */,
-				B0B2E0000E00000AAA100000 /* EventQuickEntryParser.m in Sources */,
-				B0B2E0001F00000AAA100000 /* EventQuickEntryKeywords.m in Sources */,
-				B0B2E0002100000AAA100000 /* EventQuickEntryLanguagePackRegistry.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -785,50 +721,6 @@
 			};
 			name = Release;
 		};
-		B0B2E0000400000AAA100000 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GCC_C_LANGUAGE_STANDARD = gnu99;
-				GENERATE_INFOPLIST_FILE = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.mowglii.ItsycalTests";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-			};
-			name = Debug;
-		};
-		B0B2E0000500000AAA100000 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				GCC_C_LANGUAGE_STANDARD = gnu99;
-				GENERATE_INFOPLIST_FILE = YES;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-					"@loader_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 11.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.mowglii.ItsycalTests";
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = macosx;
-			};
-			name = Release;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -846,15 +738,6 @@
 			buildConfigurations = (
 				9242A57A1A82A136005AA4B3 /* Debug */,
 				9242A57B1A82A136005AA4B3 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		B0B2E0000300000AAA100000 /* Build configuration list for PBXNativeTarget "ItsycalTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				B0B2E0000400000AAA100000 /* Debug */,
-				B0B2E0000500000AAA100000 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
