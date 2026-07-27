@@ -184,9 +184,18 @@
     // works via "@" alone. The word-alternatives are wrapped in \b so the
     // boundary doesn't apply to "@" itself (a non-word character can't be
     // preceded by \b the way "@ Cafe Luna" needs it to).
+    //
+    // The trailing "(?=\s*$)" is a zero-width lookahead, not a consuming
+    // match: it requires nothing but whitespace after the location, without
+    // folding that whitespace into the match itself. That distinction
+    // matters because location is matched after date/duration have already
+    // blanked their own text to spaces — a consuming "\s*$" would swallow
+    // any such blanked region trailing the location (e.g. "At Cafe Luna for
+    // 15 minutes", once "for 15 minutes" is blanked), inflating this span's
+    // range far past the actual location text.
     NSString *prefixAlt = [[self class] alternationPatternForPhrases:keywords.locationPrefixWords];
     NSString *prefixGroup = prefixAlt ? [NSString stringWithFormat:@"\\b(?:%@)|@", prefixAlt] : @"@";
-    NSString *pattern = [NSString stringWithFormat:@"(?i)(?:%@)\\s+([A-Za-z0-9][^,]*?)(?:\\s+(?:%@))?\\s*$", prefixGroup, prefixGroup];
+    NSString *pattern = [NSString stringWithFormat:@"(?i)(?:%@)\\s+([A-Za-z0-9][^,]*?)(?:\\s+(?:%@))?(?=\\s*$)", prefixGroup, prefixGroup];
     _locationRegex = [NSRegularExpression regularExpressionWithPattern:pattern options:0 error:nil];
 }
 
