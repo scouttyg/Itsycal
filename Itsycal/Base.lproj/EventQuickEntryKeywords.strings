@@ -22,8 +22,13 @@
 /* Relative-period phrases NSDataDetector doesn't recognize on its own */
 "nextWeekPhrase" = "next week";
 "nextMonthPhrase" = "next month";
-"relativeWeeksPrefixWord" = "in";
+"nextYearPhrase" = "next year";
+"relativePeriodPrefixWord" = "in";
+"relativePeriodFromNowSuffix" = "from now";
 "weekUnitWords" = "weeks|week";
+"monthUnitWords" = "months|month";
+"yearUnitWords" = "years|year";
+"numberWords" = "one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve";
 
 /* Recurrence phrases, keyed by frequency */
 "recurrencePhrases.every2Weeks" = "every other week|biweekly";

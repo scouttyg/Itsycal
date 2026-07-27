@@ -85,14 +85,27 @@ NS_ASSUME_NONNULL_BEGIN
 // confirmed empirically: it resolves day-of-week-based phrases like "next
 // Tuesday" and count-of-days phrases like "in 3 days" or "tomorrow" just
 // fine, but has no support at all for bare relative-period phrases like
-// "next week" or "next month", even standalone. These four properties
-// drive a small custom detector that runs before NSDataDetector to cover
-// that gap; leaving any of them empty simply disables that phrase (see
-// -relativePeriodSpanInMasked:original:result:calendar:).
-@property (nonatomic, copy) NSString *nextWeekPhrase;      // e.g. "next week" (en)
-@property (nonatomic, copy) NSString *nextMonthPhrase;     // e.g. "next month" (en)
-@property (nonatomic, copy) NSString *relativeWeeksPrefixWord; // word before a count, e.g. "in" (en)
-@property (nonatomic, copy) NSArray<NSString *> *weekUnitWords; // e.g. @[@"weeks", @"week"] (en)
+// "next week", "next month", or "next year", even standalone. These
+// properties drive a small custom detector that runs before NSDataDetector
+// to cover that gap, recognizing three forms per unit (week/month/year):
+// "next <unit>", "<relativePeriodPrefixWord> N <unit>s" (e.g. "in 2
+// weeks"), and "N <unit>s <relativePeriodFromNowSuffix>" (e.g. "2 weeks
+// from now"). N may be a digit string or one of numberWords. Leaving any
+// property empty simply disables the phrase(s) it drives — see
+// -relativePeriodSpanInMasked:original:result:calendar:.
+@property (nonatomic, copy) NSString *nextWeekPhrase;   // e.g. "next week" (en)
+@property (nonatomic, copy) NSString *nextMonthPhrase;  // e.g. "next month" (en)
+@property (nonatomic, copy) NSString *nextYearPhrase;   // e.g. "next year" (en)
+@property (nonatomic, copy) NSString *relativePeriodPrefixWord;    // e.g. "in" (en) — shared across all three units
+@property (nonatomic, copy) NSString *relativePeriodFromNowSuffix; // e.g. "from now" (en) — shared across all three units
+@property (nonatomic, copy) NSArray<NSString *> *weekUnitWords;  // e.g. @[@"weeks", @"week"] (en)
+@property (nonatomic, copy) NSArray<NSString *> *monthUnitWords; // e.g. @[@"months", @"month"] (en)
+@property (nonatomic, copy) NSArray<NSString *> *yearUnitWords;  // e.g. @[@"years", @"year"] (en)
+
+// Spelled-out counts, ordered 1..N by position — e.g. @[@"one", @"two", ...]
+// so index 0 means 1, index 1 means 2, etc. Digit strings ("2") are always
+// recognized regardless of this list; this only adds word forms on top.
+@property (nonatomic, copy) NSArray<NSString *> *numberWords;
 
 // Example phrase shown as the quick-entry field's placeholder text.
 @property (nonatomic, copy) NSString *placeholderExample;

@@ -26,10 +26,15 @@
    quick-entry's tooltip text stays consistent with what the popup itself
    already shows.
 
-   nextWeekPhrase/nextMonthPhrase/relativeWeeksPrefixWord/weekUnitWords are
-   plain translations, not verified against NSDataDetector output — unlike
-   the rest of this file, NSDataDetector plays no role in recognizing these
-   phrases (that's the point of them), so there was nothing to probe. */
+   nextWeekPhrase/nextMonthPhrase/nextYearPhrase/relativePeriodPrefixWord/
+   relativePeriodFromNowSuffix/weekUnitWords/monthUnitWords/yearUnitWords/
+   numberWords are plain translations, not verified against NSDataDetector
+   output — unlike the rest of this file, NSDataDetector plays no role in
+   recognizing these phrases (that's the point of them), so there was
+   nothing to probe. relativePeriodFromNowSuffix ("a partir de ahora") is a
+   literal translation of "from now"; a native speaker may prefer a
+   different construction (e.g. "dentro de dos semanas" as a prefix form
+   instead) — flagging for review rather than guessing further. */
 
 "languageCode" = "es";
 
@@ -52,8 +57,13 @@
 /* Relative-period phrases NSDataDetector doesn't recognize on its own */
 "nextWeekPhrase" = "la próxima semana";
 "nextMonthPhrase" = "el próximo mes";
-"relativeWeeksPrefixWord" = "en";
+"nextYearPhrase" = "el próximo año";
+"relativePeriodPrefixWord" = "en";
+"relativePeriodFromNowSuffix" = "a partir de ahora";
 "weekUnitWords" = "semanas|semana";
+"monthUnitWords" = "meses|mes";
+"yearUnitWords" = "años|año";
+"numberWords" = "uno|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce";
 
 /* Recurrence phrases, keyed by frequency */
 "recurrencePhrases.every2Weeks" = "cada 2 semanas|cada dos semanas|quincenal";

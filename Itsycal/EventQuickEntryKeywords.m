@@ -56,8 +56,13 @@
     keywords.dateTimeConnector = strings[@"dateTimeConnector"];
     keywords.nextWeekPhrase = strings[@"nextWeekPhrase"];
     keywords.nextMonthPhrase = strings[@"nextMonthPhrase"];
-    keywords.relativeWeeksPrefixWord = strings[@"relativeWeeksPrefixWord"];
+    keywords.nextYearPhrase = strings[@"nextYearPhrase"];
+    keywords.relativePeriodPrefixWord = strings[@"relativePeriodPrefixWord"];
+    keywords.relativePeriodFromNowSuffix = strings[@"relativePeriodFromNowSuffix"];
     keywords.weekUnitWords = [self arrayForDelimitedString:strings[@"weekUnitWords"]];
+    keywords.monthUnitWords = [self arrayForDelimitedString:strings[@"monthUnitWords"]];
+    keywords.yearUnitWords = [self arrayForDelimitedString:strings[@"yearUnitWords"]];
+    keywords.numberWords = [self arrayForDelimitedString:strings[@"numberWords"]];
     keywords.placeholderExample = strings[@"placeholderExample"];
     return keywords;
 }
@@ -250,26 +255,44 @@
 
 - (void)buildRelativePeriodRegexFromKeywords:(EventQuickEntryKeywords *)keywords
 {
-    // Three independently-optional alternatives, each keyed by a fixed
-    // capture group index (1=next week, 2=next month, 3=count of weeks) —
-    // -relativePeriodSpanInMasked:original:result:calendar: reads those
-    // indices directly, so a missing phrase gets "(?!)" rather than being
-    // omitted, keeping the other groups' numbering fixed. Same reasoning
-    // as buildDurationRegexFromKeywords: above.
-    NSString *nextWeek = keywords.nextWeekPhrase.length > 0
-        ? [NSRegularExpression escapedPatternForString:keywords.nextWeekPhrase]
-        : @"(?!)";
-    NSString *nextMonth = keywords.nextMonthPhrase.length > 0
-        ? [NSRegularExpression escapedPatternForString:keywords.nextMonthPhrase]
-        : @"(?!)";
-    NSString *weeksPrefixWord = keywords.relativeWeeksPrefixWord.length > 0
-        ? [NSRegularExpression escapedPatternForString:keywords.relativeWeeksPrefixWord]
-        : @"(?!)";
-    NSString *weekUnitAlt = [[self class] alternationPatternForPhrases:keywords.weekUnitWords] ?: @"(?!)";
+    // Nine independently-optional alternatives, each keyed by a fixed
+    // capture-group index that -relativePeriodSpanInMasked:original:result:calendar:
+    // reads directly: groups 1-3 are "next week"/"next month"/"next year";
+    // groups 4-9 are the prefix ("in N weeks") and "from now" suffix ("N
+    // weeks from now") forms, two groups per unit in week/month/year order.
+    // A missing phrase/word list gets "(?!)" rather than being omitted, to
+    // keep every other group's numbering fixed — same reasoning as
+    // buildDurationRegexFromKeywords: above.
+    NSString *prefixWord = keywords.relativePeriodPrefixWord.length > 0
+        ? [NSRegularExpression escapedPatternForString:keywords.relativePeriodPrefixWord] : @"(?!)";
+    NSString *fromNowSuffix = keywords.relativePeriodFromNowSuffix.length > 0
+        ? [NSRegularExpression escapedPatternForString:keywords.relativePeriodFromNowSuffix] : @"(?!)";
+    NSString *countAlt = [[self class] countAlternationForNumberWords:keywords.numberWords];
 
-    NSString *pattern = [NSString stringWithFormat:@"(?i)\\b(%@)\\b|\\b(%@)\\b|\\b%@\\s+(\\d+)\\s*(?:%@)\\b",
-        nextWeek, nextMonth, weeksPrefixWord, weekUnitAlt];
+    NSArray<NSString *> *nextPhrases = @[keywords.nextWeekPhrase ?: @"", keywords.nextMonthPhrase ?: @"", keywords.nextYearPhrase ?: @""];
+    NSArray<NSArray<NSString *> *> *unitWordsByUnit = @[keywords.weekUnitWords ?: @[], keywords.monthUnitWords ?: @[], keywords.yearUnitWords ?: @[]];
+
+    NSMutableArray<NSString *> *branches = [NSMutableArray new];
+    for (NSString *phrase in nextPhrases) {
+        NSString *escaped = phrase.length > 0 ? [NSRegularExpression escapedPatternForString:phrase] : @"(?!)";
+        [branches addObject:[NSString stringWithFormat:@"\\b(%@)\\b", escaped]];
+    }
+    for (NSArray<NSString *> *unitWords in unitWordsByUnit) {
+        NSString *unitAlt = [[self class] alternationPatternForPhrases:unitWords] ?: @"(?!)";
+        [branches addObject:[NSString stringWithFormat:@"\\b%@\\s+(%@)\\s*(?:%@)\\b", prefixWord, countAlt, unitAlt]];
+        [branches addObject:[NSString stringWithFormat:@"\\b(%@)\\s*(?:%@)\\s+%@\\b", countAlt, unitAlt, fromNowSuffix]];
+    }
+
+    NSString *pattern = [NSString stringWithFormat:@"(?i)%@", [branches componentsJoinedByString:@"|"]];
     _relativePeriodRegex = [NSRegularExpression regularExpressionWithPattern:pattern options:0 error:nil];
+}
+
+// Digit strings ("2") are always recognized, language-independent; word
+// forms from numberWords are additionally recognized on top when configured.
++ (NSString *)countAlternationForNumberWords:(NSArray<NSString *> *)numberWords
+{
+    NSString *wordsAlt = [self alternationPatternForPhrases:numberWords];
+    return wordsAlt ? [NSString stringWithFormat:@"\\d+|%@", wordsAlt] : @"\\d+";
 }
 
 #pragma mark -
@@ -336,8 +359,9 @@
 // Handles bare relative-period phrases NSDataDetector has no support for
 // at all — confirmed empirically: it resolves day-of-week-based phrases
 // ("next Tuesday") and day-count phrases ("in 3 days", "tomorrow") fine,
-// but returns no match whatsoever for "next week", "next month", or
-// "in N weeks", even standalone. Computes today's date (at noon, matching
+// but returns no match whatsoever for "next week", "next month", "next
+// year", "in N weeks/months/years", or "N weeks/months/years from now",
+// even standalone. Computes today's date (at noon, matching
 // NSDataDetector's own convention for a date with no time) plus the
 // matched offset, then — since this phrase gives no time of its own —
 // folds in a nearby explicit time if one immediately follows, using
@@ -349,12 +373,24 @@
     if (!match) return nil;
 
     NSDateComponents *offset = [NSDateComponents new];
-    if (match.numberOfRanges > 1 && [match rangeAtIndex:1].location != NSNotFound) {
+    if ([self group:1 presentInMatch:match]) {
         offset.weekOfYear = 1;
-    } else if (match.numberOfRanges > 2 && [match rangeAtIndex:2].location != NSNotFound) {
+    } else if ([self group:2 presentInMatch:match]) {
         offset.month = 1;
-    } else if (match.numberOfRanges > 3 && [match rangeAtIndex:3].location != NSNotFound) {
-        offset.weekOfYear = [[masked substringWithRange:[match rangeAtIndex:3]] integerValue];
+    } else if ([self group:3 presentInMatch:match]) {
+        offset.year = 1;
+    } else if ([self group:4 presentInMatch:match]) {
+        offset.weekOfYear = [self integerValueForCountRange:[match rangeAtIndex:4] inMasked:masked];
+    } else if ([self group:5 presentInMatch:match]) {
+        offset.weekOfYear = [self integerValueForCountRange:[match rangeAtIndex:5] inMasked:masked];
+    } else if ([self group:6 presentInMatch:match]) {
+        offset.month = [self integerValueForCountRange:[match rangeAtIndex:6] inMasked:masked];
+    } else if ([self group:7 presentInMatch:match]) {
+        offset.month = [self integerValueForCountRange:[match rangeAtIndex:7] inMasked:masked];
+    } else if ([self group:8 presentInMatch:match]) {
+        offset.year = [self integerValueForCountRange:[match rangeAtIndex:8] inMasked:masked];
+    } else if ([self group:9 presentInMatch:match]) {
+        offset.year = [self integerValueForCountRange:[match rangeAtIndex:9] inMasked:masked];
     } else {
         return nil;
     }
@@ -377,6 +413,29 @@
     span.label = _keywords.dateSpanLabel;
     span.displayValue = [self displayValueForDate:combinedDate hasExplicitTime:hasExplicitTime calendar:calendar];
     return span;
+}
+
+- (BOOL)group:(NSUInteger)index presentInMatch:(NSTextCheckingResult *)match
+{
+    return match.numberOfRanges > index && [match rangeAtIndex:index].location != NSNotFound;
+}
+
+// The captured count text is either all digits (always recognized,
+// language-independent) or one of the configured spelled-out number
+// words — see numberWords, whose *position* (not the word itself) carries
+// the value: index 0 means 1, index 1 means 2, etc. Returns 0 if somehow
+// neither matches, which can't actually happen given the regex that
+// produced `range` only ever captures one of those two things.
+- (NSInteger)integerValueForCountRange:(NSRange)range inMasked:(NSString *)masked
+{
+    NSString *text = [masked substringWithRange:range];
+    if ([text rangeOfCharacterFromSet:[NSCharacterSet decimalDigitCharacterSet]].location != NSNotFound) {
+        return [text integerValue];
+    }
+    for (NSUInteger i = 0; i < _keywords.numberWords.count; i++) {
+        if ([_keywords.numberWords[i] caseInsensitiveCompare:text] == NSOrderedSame) return (NSInteger)i + 1;
+    }
+    return 0;
 }
 
 // Looks for an explicit time phrase (e.g. "2pm") immediately before or
