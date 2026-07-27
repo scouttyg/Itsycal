@@ -60,7 +60,8 @@
 
 @end
 
-#pragma mark - EventQuickEntryKeywordLanguagePack
+#pragma mark -
+#pragma mark EventQuickEntryKeywordLanguagePack
 
 @implementation EventQuickEntryKeywordLanguagePack
 {
@@ -90,6 +91,7 @@
     return self;
 }
 
+#pragma mark -
 #pragma mark Regex construction
 
 // Returns nil (not an empty string) when `phrases` is empty. This matters:
@@ -224,6 +226,7 @@
     _recurrenceLabels = labels;
 }
 
+#pragma mark -
 #pragma mark EventQuickEntryLanguagePack — placeholder
 
 - (NSString *)placeholderExample
@@ -231,6 +234,7 @@
     return _keywords.placeholderExample;
 }
 
+#pragma mark -
 #pragma mark Shared masking utility
 
 + (void)blankRange:(NSRange)range inMasked:(NSMutableString *)masked
@@ -239,6 +243,7 @@
     [masked replaceCharactersInRange:range withString:blank];
 }
 
+#pragma mark -
 #pragma mark EventQuickEntryLanguagePack — Date/time
 
 - (nullable EventQuickEntrySpan *)dateSpanInMasked:(NSMutableString *)masked
@@ -333,6 +338,7 @@
     return [_timeRegex firstMatchInString:text options:0 range:NSMakeRange(0, text.length)] != nil;
 }
 
+#pragma mark -
 #pragma mark EventQuickEntryLanguagePack — Duration
 
 - (nullable EventQuickEntrySpan *)durationSpanInMasked:(NSMutableString *)masked result:(EventQuickEntryResult *)result
@@ -383,6 +389,7 @@
     return [NSString stringWithFormat:@"%@ %ld %@", hoursPart, (long)remainder, minuteWordPlural];
 }
 
+#pragma mark -
 #pragma mark EventQuickEntryLanguagePack — Location
 
 - (nullable EventQuickEntrySpan *)locationSpanInMasked:(NSMutableString *)masked result:(EventQuickEntryResult *)result
@@ -407,6 +414,7 @@
     return span;
 }
 
+#pragma mark -
 #pragma mark EventQuickEntryLanguagePack — Recurrence
 
 - (nullable EventQuickEntrySpan *)recurrenceSpanInMasked:(NSMutableString *)masked result:(EventQuickEntryResult *)result

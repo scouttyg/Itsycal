@@ -8,8 +8,7 @@
 #import "EventQuickEntryParser.h"
 #import "EventQuickEntryLanguagePackRegistry.h"
 
-@implementation EventQuickEntrySpan
-@end
+@implementation EventQuickEntrySpan @end
 
 @implementation EventQuickEntryResult
 
