@@ -246,10 +246,7 @@
 #pragma mark -
 #pragma mark EventQuickEntryLanguagePack — Date/time
 
-- (nullable EventQuickEntrySpan *)dateSpanInMasked:(NSMutableString *)masked
-                                           original:(NSString *)original
-                                             result:(EventQuickEntryResult *)result
-                                           calendar:(NSCalendar *)calendar
+- (nullable EventQuickEntrySpan *)dateSpanInMasked:(NSMutableString *)masked original:(NSString *)original result:(EventQuickEntryResult *)result calendar:(NSCalendar *)calendar
 {
     NSError *error = nil;
     NSDataDetector *detector = [NSDataDetector dataDetectorWithTypes:NSTextCheckingTypeDate error:&error];

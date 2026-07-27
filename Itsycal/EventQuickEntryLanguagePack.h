@@ -31,10 +31,7 @@ NS_ASSUME_NONNULL_BEGIN
 // Example phrase shown as the quick-entry field's placeholder text, e.g.
 // "Meeting with Bob for 30 min this Friday" (en).
 @property (nonatomic, readonly, copy) NSString *placeholderExample;
-- (nullable EventQuickEntrySpan *)dateSpanInMasked:(NSMutableString *)masked
-                                           original:(NSString *)original
-                                             result:(EventQuickEntryResult *)result
-                                           calendar:(NSCalendar *)calendar;
+- (nullable EventQuickEntrySpan *)dateSpanInMasked:(NSMutableString *)masked original:(NSString *)original result:(EventQuickEntryResult *)result calendar:(NSCalendar *)calendar;
 - (nullable EventQuickEntrySpan *)durationSpanInMasked:(NSMutableString *)masked result:(EventQuickEntryResult *)result;
 - (nullable EventQuickEntrySpan *)locationSpanInMasked:(NSMutableString *)masked result:(EventQuickEntryResult *)result;
 - (nullable EventQuickEntrySpan *)recurrenceSpanInMasked:(NSMutableString *)masked result:(EventQuickEntryResult *)result;
