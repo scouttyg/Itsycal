@@ -54,6 +54,8 @@
 		B0B2E0000D00000AAA100000 /* EventQuickEntryParser.m in Sources */ = {isa = PBXBuildFile; fileRef = B0B2E0000C00000AAA100000 /* EventQuickEntryParser.m */; };
 		B0B2E0000E00000AAA100000 /* EventQuickEntryParser.m in Sources */ = {isa = PBXBuildFile; fileRef = B0B2E0000C00000AAA100000 /* EventQuickEntryParser.m */; };
 		B0B2E0001000000AAA100000 /* XCTest.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = B0B2E0000F00000AAA100000 /* XCTest.framework */; };
+		B0B2E0001400000AAA100000 /* EventQuickEntryKeywords.strings in Resources */ = {isa = PBXBuildFile; fileRef = B0B2E0001100000AAA100000 /* EventQuickEntryKeywords.strings */; };
+		B0B2E0001500000AAA100000 /* EventQuickEntryKeywords.strings in Resources */ = {isa = PBXBuildFile; fileRef = B0B2E0001100000AAA100000 /* EventQuickEntryKeywords.strings */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -180,6 +182,8 @@
 		B0B2E0000B00000AAA100000 /* EventQuickEntryParser.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = EventQuickEntryParser.h; sourceTree = "<group>"; };
 		B0B2E0000C00000AAA100000 /* EventQuickEntryParser.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = EventQuickEntryParser.m; sourceTree = "<group>"; };
 		B0B2E0000F00000AAA100000 /* XCTest.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = XCTest.framework; path = Platforms/MacOSX.platform/Developer/Library/Frameworks/XCTest.framework; sourceTree = DEVELOPER_DIR; };
+		B0B2E0001200000AAA100000 /* Base */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = Base; path = Base.lproj/EventQuickEntryKeywords.strings; sourceTree = "<group>"; };
+		B0B2E0001300000AAA100000 /* es */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = es; path = es.lproj/EventQuickEntryKeywords.strings; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -286,6 +290,7 @@
 				92658E611A9DBD8E002AE86C /* EventViewController.m */,
 				B0B2E0000B00000AAA100000 /* EventQuickEntryParser.h */,
 				B0B2E0000C00000AAA100000 /* EventQuickEntryParser.m */,
+				B0B2E0001100000AAA100000 /* EventQuickEntryKeywords.strings */,
 				9261EB2E1EEF447500DCFFC4 /* Themer.h */,
 				9261EB2F1EEF447500DCFFC4 /* Themer.m */,
 				92B28CCD210BD17500485AE2 /* Sizer.h */,
@@ -384,6 +389,7 @@
 			buildPhases = (
 				B0B2E0000600000AAA100000 /* Sources */,
 				B0B2E0000700000AAA100000 /* Frameworks */,
+				B0B2E0001600000AAA100000 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -450,6 +456,15 @@
 				922B6BC41A87EDBE00DEA9CD /* InfoPlist.strings in Resources */,
 				922B6BBE1A87EDBD00DEA9CD /* Localizable.strings in Resources */,
 				9242A56A1A82A136005AA4B3 /* MainMenu.xib in Resources */,
+				B0B2E0001400000AAA100000 /* EventQuickEntryKeywords.strings in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B0B2E0001600000AAA100000 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B0B2E0001500000AAA100000 /* EventQuickEntryKeywords.strings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -567,6 +582,15 @@
 				6F21F6F31F0CDA7D00F443BE /* zh-Hans */,
 			);
 			name = MainMenu.xib;
+			sourceTree = "<group>";
+		};
+		B0B2E0001100000AAA100000 /* EventQuickEntryKeywords.strings */ = {
+			isa = PBXVariantGroup;
+			children = (
+				B0B2E0001200000AAA100000 /* Base */,
+				B0B2E0001300000AAA100000 /* es */,
+			);
+			name = EventQuickEntryKeywords.strings;
 			sourceTree = "<group>";
 		};
 /* End PBXVariantGroup section */

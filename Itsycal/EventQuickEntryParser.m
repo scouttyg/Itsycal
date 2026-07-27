@@ -28,6 +28,55 @@
 @end
 
 @implementation EventQuickEntryKeywords
+
+// Fixed key order for the two recurrence dictionaries, both here and in
+// EventQuickEntryKeywordLanguagePack's regex construction — must match
+// EventQuickEntryRecurrence's non-None cases.
++ (NSArray<NSString *> *)recurrenceFrequencyKeys
+{
+    return @[@"every2Weeks", @"everyDay", @"everyWeek", @"everyMonth", @"everyYear"];
+}
+
++ (NSArray<NSString *> *)arrayForDelimitedString:(nullable NSString *)value
+{
+    if (value.length == 0) return @[];
+    return [value componentsSeparatedByString:@"|"];
+}
+
++ (nullable instancetype)keywordsWithContentsOfStringsFileAtPath:(NSString *)path
+{
+    NSDictionary<NSString *, NSString *> *strings = [NSDictionary dictionaryWithContentsOfFile:path];
+    if (!strings) return nil;
+
+    NSMutableDictionary<NSString *, NSArray<NSString *> *> *recurrencePhrases = [NSMutableDictionary new];
+    NSMutableDictionary<NSString *, NSString *> *recurrenceLabels = [NSMutableDictionary new];
+    for (NSString *key in [self recurrenceFrequencyKeys]) {
+        recurrencePhrases[key] = [self arrayForDelimitedString:strings[[@"recurrencePhrases." stringByAppendingString:key]]];
+        recurrenceLabels[key] = strings[[@"recurrenceLabel." stringByAppendingString:key]] ?: @"";
+    }
+
+    EventQuickEntryKeywords *keywords = [EventQuickEntryKeywords new];
+    keywords.languageCode = strings[@"languageCode"];
+    keywords.durationPrefixWord = strings[@"durationPrefixWord"];
+    keywords.halfHourPhrase = strings[@"halfHourPhrase"];
+    keywords.oneHourPhrases = [self arrayForDelimitedString:strings[@"oneHourPhrases"]];
+    keywords.hourUnitWords = [self arrayForDelimitedString:strings[@"hourUnitWords"]];
+    keywords.minuteUnitWords = [self arrayForDelimitedString:strings[@"minuteUnitWords"]];
+    keywords.locationPrefixWords = [self arrayForDelimitedString:strings[@"locationPrefixWords"]];
+    keywords.danglingPrefixWords = [self arrayForDelimitedString:strings[@"danglingPrefixWords"]];
+    keywords.mealWords = [self arrayForDelimitedString:strings[@"mealWords"]];
+    keywords.explicitTimeWords = [self arrayForDelimitedString:strings[@"explicitTimeWords"]];
+    keywords.recurrencePhrasesByFrequencyKey = recurrencePhrases;
+    keywords.recurrenceLabelsByFrequencyKey = recurrenceLabels;
+    keywords.dateSpanLabel = strings[@"dateSpanLabel"];
+    keywords.durationSpanLabel = strings[@"durationSpanLabel"];
+    keywords.locationSpanLabel = strings[@"locationSpanLabel"];
+    keywords.repeatSpanLabel = strings[@"repeatSpanLabel"];
+    keywords.dateTimeConnector = strings[@"dateTimeConnector"];
+    keywords.placeholderExample = strings[@"placeholderExample"];
+    return keywords;
+}
+
 @end
 
 #pragma mark - EventQuickEntryKeywordLanguagePack
@@ -135,7 +184,7 @@
 {
     // "every other week"-style phrases are checked before the plain
     // "every week"-style pattern so they aren't shadowed by it.
-    NSArray<NSString *> *orderedKeys = @[@"every2Weeks", @"everyDay", @"everyWeek", @"everyMonth", @"everyYear"];
+    NSArray<NSString *> *orderedKeys = [EventQuickEntryKeywords recurrenceFrequencyKeys];
     NSArray<NSNumber *> *orderedValues = @[
         @(EventQuickEntryRecurrenceEvery2Weeks),
         @(EventQuickEntryRecurrenceEveryDay),
@@ -363,116 +412,28 @@
 
 @end
 
-#pragma mark - EventQuickEntryEnglishLanguagePack
-
-@implementation EventQuickEntryEnglishLanguagePack
-
-- (instancetype)init
-{
-    EventQuickEntryKeywords *keywords = [EventQuickEntryKeywords new];
-    keywords.languageCode = @"en";
-    keywords.durationPrefixWord = @"for";
-    keywords.halfHourPhrase = @"half an hour";
-    keywords.oneHourPhrases = @[@"a hour", @"an hour"];
-    keywords.hourUnitWords = @[@"hours", @"hour", @"hrs", @"hr"];
-    keywords.minuteUnitWords = @[@"minutes", @"minute", @"mins", @"min"];
-    keywords.locationPrefixWords = @[@"at", @"in"];
-    keywords.danglingPrefixWords = @[@"on"];
-    keywords.mealWords = @[@"lunch", @"breakfast", @"dinner", @"brunch"];
-    keywords.explicitTimeWords = @[@"noon", @"midnight", @"morning", @"afternoon", @"evening"];
-    keywords.recurrencePhrasesByFrequencyKey = @{
-        @"every2Weeks": @[@"every other week", @"biweekly"],
-        @"everyDay":    @[@"every day", @"daily"],
-        @"everyWeek":   @[@"every week", @"weekly"],
-        @"everyMonth":  @[@"every month", @"monthly"],
-        @"everyYear":   @[@"every year", @"yearly", @"annually"],
-    };
-    keywords.recurrenceLabelsByFrequencyKey = @{
-        @"every2Weeks": @"Every 2 Weeks",
-        @"everyDay":    @"Every Day",
-        @"everyWeek":   @"Every Week",
-        @"everyMonth":  @"Every Month",
-        @"everyYear":   @"Every Year",
-    };
-    keywords.dateSpanLabel = @"Date";
-    keywords.durationSpanLabel = @"Duration";
-    keywords.locationSpanLabel = @"Location";
-    keywords.repeatSpanLabel = @"Repeat";
-    keywords.dateTimeConnector = @"at";
-    keywords.placeholderExample = @"Meeting with Bob for 30 min this Friday";
-    return [self initWithKeywords:keywords];
-}
-
-@end
-
-#pragma mark - EventQuickEntrySpanishLanguagePack
-
-@implementation EventQuickEntrySpanishLanguagePack
-
-- (instancetype)init
-{
-    EventQuickEntryKeywords *keywords = [EventQuickEntryKeywords new];
-    keywords.languageCode = @"es";
-    keywords.durationPrefixWord = @"durante";
-    keywords.halfHourPhrase = @"media hora";
-    keywords.oneHourPhrases = @[@"una hora"];
-    keywords.hourUnitWords = @[@"horas", @"hora"];
-    keywords.minuteUnitWords = @[@"minutos", @"minuto"];
-    // "en" only — "a" is too common a short preposition in Spanish and
-    // risks false-positive location matches on leftover text.
-    keywords.locationPrefixWords = @[@"en"];
-    // Verified via direct NSDataDetector probing: "el próximo lunes" and
-    // "el viernes a las 15:00" both leave a leading "el" stranded; "esta
-    // noche" leaves "esta" stranded. Other articles/demonstratives included
-    // by analogy, not individually verified.
-    keywords.danglingPrefixWords = @[@"el", @"la", @"los", @"las", @"esta", @"este"];
-    keywords.mealWords = @[@"almuerzo", @"desayuno", @"cena"];
-    // Deliberately excludes "mañana": it means both "tomorrow" and
-    // "morning" in Spanish, and probing showed NSDataDetector using it
-    // as a plain date word (not resolving a specific hour) far more often
-    // than as a time-of-day word — including it here would make
-    // hasExplicitTime incorrectly true for phrases that only mean
-    // "tomorrow" with no specific time. "tarde"/"mediodía"/"medianoche"
-    // are included by analogy with "noche" (individually verified via
-    // probing to resolve to a specific hour) but not each verified.
-    keywords.explicitTimeWords = @[@"mediodía", @"medianoche", @"tarde", @"noche"];
-    // Phrases and labels match the app's existing es.lproj/Localizable.strings
-    // translations for the _repPopup items, so quick-entry's tooltip text
-    // is consistent with what the popup itself already shows.
-    keywords.recurrencePhrasesByFrequencyKey = @{
-        @"every2Weeks": @[@"cada 2 semanas", @"cada dos semanas", @"quincenal"],
-        @"everyDay":    @[@"todos los días", @"todos los dias", @"diariamente", @"diario"],
-        @"everyWeek":   @[@"todas las semanas", @"semanalmente"],
-        @"everyMonth":  @[@"todos los meses", @"mensualmente"],
-        @"everyYear":   @[@"todos los años", @"todos los anos", @"anualmente"],
-    };
-    keywords.recurrenceLabelsByFrequencyKey = @{
-        @"every2Weeks": @"Cada 2 semanas",
-        @"everyDay":    @"Todos los días",
-        @"everyWeek":   @"Todas las semanas",
-        @"everyMonth":  @"Todos los meses",
-        @"everyYear":   @"Todos los años",
-    };
-    keywords.dateSpanLabel = @"Fecha";
-    keywords.durationSpanLabel = @"Duración";
-    keywords.locationSpanLabel = @"Ubicación";
-    keywords.repeatSpanLabel = @"Repetir";
-    keywords.dateTimeConnector = @"a las";
-    keywords.placeholderExample = @"Reunión con Bob durante 30 min este viernes";
-    return [self initWithKeywords:keywords];
-}
-
-@end
-
 #pragma mark - EventQuickEntryLanguagePackRegistry
 
 @implementation EventQuickEntryLanguagePackRegistry
 
 + (nullable id<EventQuickEntryLanguagePack>)packForLanguageCode:(NSString *)languageCode
 {
-    if ([languageCode hasPrefix:@"en"]) return [EventQuickEntryEnglishLanguagePack new];
-    if ([languageCode hasPrefix:@"es"]) return [EventQuickEntrySpanishLanguagePack new];
-    return nil;
+    NSBundle *bundle = [NSBundle bundleForClass:[EventQuickEntryKeywords class]];
+    NSString *primaryCode = [languageCode componentsSeparatedByString:@"-"].firstObject ?: languageCode;
+
+    NSURL *url = [bundle URLForResource:@"EventQuickEntryKeywords" withExtension:@"strings" subdirectory:nil localization:primaryCode];
+    if (!url && [primaryCode isEqualToString:@"en"]) {
+        // English keywords live in Base.lproj — the project's development-
+        // language folder — like the rest of the app's base-language
+        // resources; there's no separate en.lproj.
+        url = [bundle URLForResource:@"EventQuickEntryKeywords" withExtension:@"strings" subdirectory:nil localization:@"Base"];
+    }
+    if (!url) return nil;
+
+    EventQuickEntryKeywords *keywords = [EventQuickEntryKeywords keywordsWithContentsOfStringsFileAtPath:url.path];
+    if (!keywords) return nil;
+
+    return [[EventQuickEntryKeywordLanguagePack alloc] initWithKeywords:keywords];
 }
 
 @end
@@ -486,7 +447,7 @@
 
 - (instancetype)init
 {
-    return [self initWithLanguagePack:[EventQuickEntryEnglishLanguagePack new]];
+    return [self initWithLanguagePack:[EventQuickEntryLanguagePackRegistry packForLanguageCode:@"en"]];
 }
 
 - (instancetype)initWithLanguagePack:(id<EventQuickEntryLanguagePack>)languagePack

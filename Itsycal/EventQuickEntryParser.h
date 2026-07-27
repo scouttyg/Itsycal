@@ -127,13 +127,28 @@ typedef NS_ENUM(NSInteger, EventQuickEntrySpanKind) {
 @property (nonatomic, copy) NSString *dateTimeConnector;
 // Example phrase shown as the quick-entry field's placeholder text.
 @property (nonatomic, copy) NSString *placeholderExample;
+
+// Loads keywords from a .strings file on disk with the shape shown by
+// Base.lproj/EventQuickEntryKeywords.strings / es.lproj/EventQuickEntryKeywords.strings
+// — the same flat "key" = "value"; format as Localizable.strings. Array-
+// valued properties are a single pipe-delimited entry ("word1|word2");
+// the two recurrence dictionaries are flattened into "recurrencePhrases.<key>"
+// / "recurrenceLabel.<key>" entries, one per frequency. Returns nil if the
+// file is missing or isn't a valid .strings file.
++ (nullable instancetype)keywordsWithContentsOfStringsFileAtPath:(NSString *)path;
+// The fixed key order for recurrencePhrasesByFrequencyKey/
+// recurrenceLabelsByFrequencyKey — every2Weeks is deliberately checked
+// before everyWeek so "every other week"-style phrases aren't shadowed by
+// the plain "every week" pattern.
++ (NSArray<NSString *> *)recurrenceFrequencyKeys;
 @end
 
 // Generic EventQuickEntryLanguagePack implementation driven entirely by
 // an EventQuickEntryKeywords config — the matching *logic* (masked-text
-// pipeline, regex shapes) is fixed; only the words are configurable.
-// Subclass this and override -init to supply keywords for a new
-// keyword-based language (see EventQuickEntryEnglishLanguagePack).
+// pipeline, regex shapes) is fixed; only the words are configurable. Every
+// keyword-based language uses this same class directly, constructed from
+// keywords loaded from that language's plist — see
+// EventQuickEntryLanguagePackRegistry, which is how you actually get one.
 @interface EventQuickEntryKeywordLanguagePack : NSObject <EventQuickEntryLanguagePack>
 - (instancetype)initWithKeywords:(EventQuickEntryKeywords *)keywords NS_DESIGNATED_INITIALIZER;
 // Shared utility available to any EventQuickEntryLanguagePack implementation
@@ -143,24 +158,22 @@ typedef NS_ENUM(NSInteger, EventQuickEntrySpanKind) {
 + (void)blankRange:(NSRange)range inMasked:(NSMutableString *)masked;
 @end
 
-@interface EventQuickEntryEnglishLanguagePack : EventQuickEntryKeywordLanguagePack
-@end
-
-// Best-effort Spanish keyword set, verified against real NSDataDetector
-// output but not reviewed by a native speaker — see the design doc.
-@interface EventQuickEntrySpanishLanguagePack : EventQuickEntryKeywordLanguagePack
-@end
-
 @interface EventQuickEntryLanguagePackRegistry : NSObject
 // Returns the language pack for a BCP-47-ish language code (e.g. from
-// -[NSBundle preferredLocalizations]), or nil if no pack is registered
-// for it. Matches by prefix, so "en-US"/"en-GB"/etc. all resolve to the
-// English pack.
+// -[NSBundle preferredLocalizations]), or nil if no pack is registered for
+// it. A language is "registered" simply by the presence of an
+// EventQuickEntryKeywords.strings resource in that language's <code>.lproj
+// folder (English lives in Base.lproj, like the rest of the app's
+// development-language resources) — the same localized-resource-variant
+// mechanism already used for Localizable.strings/MainMenu.xib. Adding a
+// new keyword-based language means adding a new .lproj/EventQuickEntryKeywords.strings
+// file, not writing or compiling any code. Matches by primary language
+// subtag, so "en-US"/"en-GB"/etc. all resolve to the "en" (Base) pack.
 + (nullable id<EventQuickEntryLanguagePack>)packForLanguageCode:(NSString *)languageCode;
 @end
 
 @interface EventQuickEntryParser : NSObject
-// Convenience initializer using EventQuickEntryEnglishLanguagePack.
+// Convenience initializer using the English language pack.
 - (instancetype)init;
 - (instancetype)initWithLanguagePack:(id<EventQuickEntryLanguagePack>)languagePack NS_DESIGNATED_INITIALIZER;
 // Parses free-form text into title/date/duration/location/recurrence.
