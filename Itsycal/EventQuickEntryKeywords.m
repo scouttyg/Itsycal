@@ -485,12 +485,14 @@
     return nil;
 }
 
+// A length cap alone (not also requiring a single word) is deliberate: a
+// two-word connector like Spanish "a las" must still qualify, not just
+// English's one-word "at".
 - (BOOL)isShortConnectorGapInOriginal:(NSString *)original from:(NSUInteger)start to:(NSUInteger)end
 {
     NSString *gapText = [original substringWithRange:NSMakeRange(start, end - start)];
     NSString *gap = [gapText stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-    if (gap.length == 0) return YES;
-    return gap.length <= 6 && [gap rangeOfCharacterFromSet:[NSCharacterSet whitespaceCharacterSet]].location == NSNotFound;
+    return gap.length <= 6;
 }
 
 // NSDataDetector's own match range doesn't always line up with what should
