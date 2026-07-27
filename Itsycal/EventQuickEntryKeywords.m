@@ -70,7 +70,8 @@
     NSRegularExpression *_durationRegex;
     NSRegularExpression *_mealWordRegex;        // nil if no meal words configured
     NSRegularExpression *_danglingPrefixRegex;  // nil if no dangling words configured
-    NSRegularExpression *_locationRegex;
+    NSRegularExpression *_locationPrefixRegex;
+    NSRegularExpression *_trailingLocationPrefixRegex;
     NSArray<NSRegularExpression *> *_recurrenceRegexes; // ordered: every2Weeks, everyDay, everyWeek, everyMonth, everyYear
     NSArray<NSNumber *> *_recurrenceValues;             // parallel EventQuickEntryRecurrence values
     NSArray<NSString *> *_recurrenceLabels;             // parallel display labels
@@ -185,18 +186,24 @@
     // boundary doesn't apply to "@" itself (a non-word character can't be
     // preceded by \b the way "@ Cafe Luna" needs it to).
     //
-    // The trailing "(?=\s*$)" is a zero-width lookahead, not a consuming
-    // match: it requires nothing but whitespace after the location, without
-    // folding that whitespace into the match itself. That distinction
-    // matters because location is matched after date/duration have already
-    // blanked their own text to spaces — a consuming "\s*$" would swallow
-    // any such blanked region trailing the location (e.g. "At Cafe Luna for
-    // 15 minutes", once "for 15 minutes" is blanked), inflating this span's
-    // range far past the actual location text.
+    // This only matches the prefix word itself, not the location phrase
+    // that follows — see -locationSpanInMasked:original:result: for why: a
+    // regex working on `masked` alone can't tell "more location text"
+    // apart from a previously-blanked span's leftover spaces, since both
+    // look like plain whitespace. Telling them apart needs a comparison
+    // against `original`, which a regex can't express.
     NSString *prefixAlt = [[self class] alternationPatternForPhrases:keywords.locationPrefixWords];
     NSString *prefixGroup = prefixAlt ? [NSString stringWithFormat:@"\\b(?:%@)|@", prefixAlt] : @"@";
-    NSString *pattern = [NSString stringWithFormat:@"(?i)(?:%@)\\s+([A-Za-z0-9][^,]*?)(?:\\s+(?:%@))?(?=\\s*$)", prefixGroup, prefixGroup];
-    _locationRegex = [NSRegularExpression regularExpressionWithPattern:pattern options:0 error:nil];
+    NSString *pattern = [NSString stringWithFormat:@"(?i)(?:%@)\\s+", prefixGroup];
+    _locationPrefixRegex = [NSRegularExpression regularExpressionWithPattern:pattern options:0 error:nil];
+
+    // Matches a prefix word sitting at the very end of a string, with the
+    // whitespace that separates it from real place text before it — used
+    // to detect and trim a leftover dangling preposition off the tail of
+    // an already-walked location range. See
+    // -placeCoreEndByTrimmingDanglingPrefixFromMasked:range:.
+    NSString *trailingPattern = [NSString stringWithFormat:@"(?i)\\s+(?:%@)$", prefixGroup];
+    _trailingLocationPrefixRegex = [NSRegularExpression regularExpressionWithPattern:trailingPattern options:0 error:nil];
 }
 
 - (void)buildRecurrenceRegexesFromKeywords:(EventQuickEntryKeywords *)keywords
@@ -398,26 +405,77 @@
 #pragma mark -
 #pragma mark EventQuickEntryLanguagePack — Location
 
-- (nullable EventQuickEntrySpan *)locationSpanInMasked:(NSMutableString *)masked result:(EventQuickEntryResult *)result
+- (nullable EventQuickEntrySpan *)locationSpanInMasked:(NSMutableString *)masked original:(NSString *)original result:(EventQuickEntryResult *)result
 {
-    NSTextCheckingResult *match = [_locationRegex firstMatchInString:masked options:0 range:NSMakeRange(0, masked.length)];
-    if (!match) return nil;
+    NSArray<NSTextCheckingResult *> *prefixMatches = [_locationPrefixRegex matchesInString:masked options:0 range:NSMakeRange(0, masked.length)];
+    for (NSTextCheckingResult *prefixMatch in prefixMatches) {
+        NSUInteger placeStart = NSMaxRange(prefixMatch.range);
+        NSUInteger placeEnd = [self locationPlaceEndInMasked:masked original:original from:placeStart];
+        if (placeEnd == NSNotFound) continue;
 
-    NSRange placeRange = [match rangeAtIndex:1];
-    if (placeRange.location == NSNotFound) return nil;
+        // The walked text may end in a leftover dangling preposition, e.g.
+        // "Cafe Luna at" when what followed ("noon") has already been
+        // blanked by the date detector. That trailing word is folded into
+        // the overall (blanked) matchRange below, but trimmed back out of
+        // `place` — the value actually assigned to result.location.
+        NSUInteger placeCoreEnd = [self placeCoreEndByTrimmingDanglingPrefixFromMasked:masked range:NSMakeRange(placeStart, placeEnd - placeStart)];
 
-    NSString *place = [[masked substringWithRange:placeRange] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
-    if (place.length == 0) return nil;
+        NSString *place = [[masked substringWithRange:NSMakeRange(placeStart, placeCoreEnd - placeStart)] stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceCharacterSet]];
+        if (place.length == 0) continue;
 
-    result.location = place;
-    [[self class] blankRange:match.range inMasked:masked];
+        NSRange matchRange = NSMakeRange(prefixMatch.range.location, placeEnd - prefixMatch.range.location);
 
-    EventQuickEntrySpan *span = [EventQuickEntrySpan new];
-    span.range = match.range;
-    span.kind = EventQuickEntrySpanKindLocation;
-    span.label = _keywords.locationSpanLabel;
-    span.displayValue = place;
-    return span;
+        result.location = place;
+        [[self class] blankRange:matchRange inMasked:masked];
+
+        EventQuickEntrySpan *span = [EventQuickEntrySpan new];
+        span.range = matchRange;
+        span.kind = EventQuickEntrySpanKindLocation;
+        span.label = _keywords.locationSpanLabel;
+        span.displayValue = place;
+        return span;
+    }
+    return nil;
+}
+
+// Walks forward from `start`, stopping at a comma (as the old regex did)
+// or — the rule a regex can't express — at the first character an earlier
+// detector has already blanked, detected by `masked` and `original` no
+// longer agreeing at that index. Without this, a location phrase followed
+// by an already-blanked span (e.g. "At Cafe Luna for 15 minutes", once
+// duration is blanked to spaces) has no way to tell where its own text
+// ends and the blanked span's leftover spaces begin — a plain regex
+// anchored on "nothing but whitespace to the end of the string" would
+// swallow that leftover run right along with the real location text.
+// Returns NSNotFound if nothing but whitespace follows `start`.
+- (NSUInteger)locationPlaceEndInMasked:(NSString *)masked original:(NSString *)original from:(NSUInteger)start
+{
+    NSCharacterSet *whitespace = [NSCharacterSet whitespaceCharacterSet];
+    NSUInteger length = masked.length;
+    NSUInteger lastNonWhitespace = NSNotFound;
+    for (NSUInteger i = start; i < length; i++) {
+        unichar maskedChar = [masked characterAtIndex:i];
+        if (maskedChar != [original characterAtIndex:i]) break;
+        if (maskedChar == ',') break;
+        if (![whitespace characterIsMember:maskedChar]) lastNonWhitespace = i;
+    }
+    return lastNonWhitespace == NSNotFound ? NSNotFound : lastNonWhitespace + 1;
+}
+
+// `range` (within `masked`) always ends right where an earlier detector's
+// blanked region begins, or at the true end of the string — that's how
+// -locationPlaceEndInMasked:original:from: found it. So if `range` itself
+// ends in "<real text> PREFIX" (e.g. "Cafe Luna at"), that trailing
+// PREFIX has nothing of its own following it — it's a leftover dangling
+// preposition from whatever got blanked next door, not part of the place
+// name. Returns the end index of the real place text, excluding that
+// trailing word (or `range`'s own end, unchanged, if there is none).
+- (NSUInteger)placeCoreEndByTrimmingDanglingPrefixFromMasked:(NSString *)masked range:(NSRange)range
+{
+    NSString *text = [masked substringWithRange:range];
+    NSTextCheckingResult *trailingPrefixMatch = [_trailingLocationPrefixRegex firstMatchInString:text options:0 range:NSMakeRange(0, text.length)];
+    if (!trailingPrefixMatch) return NSMaxRange(range);
+    return range.location + trailingPrefixMatch.range.location;
 }
 
 #pragma mark -

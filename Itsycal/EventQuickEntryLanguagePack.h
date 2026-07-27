@@ -33,7 +33,7 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic, readonly, copy) NSString *placeholderExample;
 - (nullable EventQuickEntrySpan *)dateSpanInMasked:(NSMutableString *)masked original:(NSString *)original result:(EventQuickEntryResult *)result calendar:(NSCalendar *)calendar;
 - (nullable EventQuickEntrySpan *)durationSpanInMasked:(NSMutableString *)masked result:(EventQuickEntryResult *)result;
-- (nullable EventQuickEntrySpan *)locationSpanInMasked:(NSMutableString *)masked result:(EventQuickEntryResult *)result;
+- (nullable EventQuickEntrySpan *)locationSpanInMasked:(NSMutableString *)masked original:(NSString *)original result:(EventQuickEntryResult *)result;
 - (nullable EventQuickEntrySpan *)recurrenceSpanInMasked:(NSMutableString *)masked result:(EventQuickEntryResult *)result;
 @end
 

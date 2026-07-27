@@ -61,7 +61,7 @@
     EventQuickEntrySpan *durationSpan = [_languagePack durationSpanInMasked:masked result:result];
     if (durationSpan) [recognizedSpans addObject:durationSpan];
 
-    EventQuickEntrySpan *locationSpan = [_languagePack locationSpanInMasked:masked result:result];
+    EventQuickEntrySpan *locationSpan = [_languagePack locationSpanInMasked:masked original:original result:result];
     if (locationSpan) [recognizedSpans addObject:locationSpan];
 
     EventQuickEntrySpan *recurrenceSpan = [_languagePack recurrenceSpanInMasked:masked result:result];
