@@ -2,6 +2,8 @@
 //  EventQuickEntryParserTests.m
 //  ItsycalTests
 //
+//  Created by Scott Goci on 7/27/26.
+//
 
 #import <XCTest/XCTest.h>
 #import "EventQuickEntryParser.h"

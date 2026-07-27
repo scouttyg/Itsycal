@@ -2,6 +2,8 @@
 //  EventQuickEntryParser.m
 //  Itsycal
 //
+//  Created by Scott Goci on 7/27/26.
+//
 
 #import "EventQuickEntryParser.h"
 
